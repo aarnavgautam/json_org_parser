@@ -12,9 +12,9 @@ KEY = "uf-orgs-tracking"
 
 
 def kv_command(cmd):
-    """Send command to Upstash Redis REST API."""
-    url = os.environ.get("KV_REST_API_URL")
-    token = os.environ.get("KV_REST_API_TOKEN")
+    """Send command to Upstash Redis REST API. Supports both Vercel KV and Upstash env var names."""
+    url = os.environ.get("KV_REST_API_URL") or os.environ.get("UPSTASH_REDIS_REST_URL")
+    token = os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN")
     if not url or not token:
         return None
     try:
