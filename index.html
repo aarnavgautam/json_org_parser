@@ -138,6 +138,7 @@
     }
     .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-top: 0.25rem; }
     .event-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .event-full-label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem; margin-bottom: 0.25rem; }
 
     .actions-bar {
       display: flex;
@@ -276,9 +277,13 @@
             <button type="button" class="btn btn-outline btn-sm" id="copy-prompt-btn">Copy prompt</button>
           </li>
           <li><strong>Paste the AI output into the textbox below</strong> and click &quot;Find relevant orgs.&quot;</li>
+          <li><strong>Add your full event description</strong> in the second textbox (for AI verification). Filter by innovation, category, etc. as needed.</li>
+          <li><strong>Click &quot;Copy for AI verification&quot;</strong> to copy all visible orgs + your event + a prompt. Paste into ChatGPT (or any AI) to have it double-check relevance and return only relevant orgs with contact info for outreach.</li>
         </ol>
       </div>
       <textarea id="event-details" placeholder="Paste your AI-expanded event description here..." rows="4"></textarea>
+      <label class="event-full-label" for="event-full">Full event description (for AI verification):</label>
+      <textarea id="event-full" placeholder="Paste your original, full event description here. Used when copying for AI to verify relevance." rows="3"></textarea>
       <div class="event-actions">
         <button type="button" class="btn" id="match-event-btn">Find relevant orgs</button>
         <button type="button" class="btn btn-outline" id="clear-event-btn">Clear & show all</button>
@@ -315,6 +320,7 @@
     <button type="button" class="btn btn-outline" id="select-all">Select all visible</button>
     <button type="button" class="btn btn-outline" id="deselect-all">Deselect all</button>
     <button type="button" class="btn" id="export-btn" disabled>Export selected to CSV</button>
+    <button type="button" class="btn btn-outline" id="copy-ai-verify-btn" title="Copy visible orgs + event + prompt for ChatGPT to verify relevance">Copy for AI verification</button>
   </div>
 
   <main class="content">
@@ -608,6 +614,47 @@
       exportBtn.disabled = selectedIds.size === 0;
     }
 
+    function buildTextForAiVerification() {
+      const orgsToShow = displayOrgs || allOrgs;
+      const perPage = parseInt(document.getElementById('show-per-page')?.value || '9999', 10) || 9999;
+      const orgs = !displayOrgs && perPage < 9999 ? orgsToShow.slice(0, perPage) : orgsToShow;
+      const eventFull = (document.getElementById('event-full')?.value || '').trim();
+      const positions = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value);
+      const wantAllPositions = positions.length === 0 || positions.length === 4;
+      const positionTypes = new Set(positions.map(p => p.toLowerCase()));
+
+      const lines = [];
+      lines.push('EVENT TO VERIFY RELEVANCE FOR:');
+      lines.push(eventFull || '(No event description provided—add your full event above.)');
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+      lines.push(`ORGANIZATIONS TO REVIEW (${orgs.length} orgs):`);
+      lines.push('');
+
+      for (const org of orgs) {
+        const officers = (org.Officers || []).filter(o => {
+          if (!o.Email) return false;
+          if (wantAllPositions) return true;
+          const pt = (o.PositionType || '').toLowerCase();
+          return positionTypes.has(pt);
+        });
+        lines.push(org.OrganizationName || 'Unknown');
+        lines.push(`Description: ${(org.OrganizationDescription || '').replace(/\n/g, ' ')}`);
+        lines.push(`Categories: ${(org.Categories || []).join(', ')}`);
+        if (org.InnovationFit) lines.push(`Innovation: ${org.InnovationFit}`);
+        lines.push('Contacts:');
+        officers.forEach(o => lines.push(`  - ${o.Position || 'N/A'} - ${o.Name || 'N/A'} (${o.Email})`));
+        lines.push('');
+        lines.push('---');
+        lines.push('');
+      }
+
+      lines.push('PROMPT FOR AI:');
+      lines.push('Review the event above and each organization below. Return ONLY the organizations that are relevant to this event. For each relevant org, include: (1) Organization name, (2) Brief description, (3) Contacts formatted as: Position - Name (email), one per line. Format your response so I can easily copy contact info for outreach.');
+      return lines.join('\n');
+    }
+
     function escapeHtml(s) {
       const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
     }
@@ -658,11 +705,21 @@
       customEl.value = '';
       [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = true);
       document.getElementById('event-details').value = '';
+      document.getElementById('event-full').value = '';
       eventRelevancy = {};
       displayOrgs = null;
       document.getElementById('relevance-sort-row').style.display = 'none';
       document.getElementById('results-limit-row').style.display = 'flex';
       fetchOrgs();
+    });
+    document.getElementById('copy-ai-verify-btn').addEventListener('click', () => {
+      const text = buildTextForAiVerification();
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-ai-verify-btn');
+        const old = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = old; }, 2000);
+      }).catch(() => {});
     });
     document.getElementById('copy-prompt-btn').addEventListener('click', () => {
       const q = document.getElementById('ai-prompt-quote');
