@@ -347,16 +347,28 @@
     }
 
     function loadTracking() {
-      try {
-        const s = localStorage.getItem(STORAGE_KEY);
-        tracking = s ? JSON.parse(s) : {};
-      } catch { tracking = {}; }
+      fetch(`${API}/api/tracking`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => { tracking = data || {}; if (allOrgs.length) renderOrgs(); })
+        .catch(() => {
+          try {
+            const s = localStorage.getItem(STORAGE_KEY);
+            tracking = s ? JSON.parse(s) : {};
+          } catch { tracking = {}; }
+          if (allOrgs.length) renderOrgs();
+        });
     }
 
     function saveTracking() {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(tracking));
-      } catch (_) {}
+      fetch(`${API}/api/tracking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tracking)
+      }).then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => { if (data) tracking = data; })
+        .catch(() => {
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tracking)); } catch (_) {}
+        });
     }
 
     function getPositionParam() {
@@ -624,7 +636,7 @@
     });
 
     document.getElementById('tracking-info-btn')?.addEventListener('click', () => {
-      alert(`Got response / Reached out tracking:\n\n• Stored in your browser only (localStorage)\n• Persists across sessions on THIS device/browser\n• Does NOT sync across devices or with coworkers\n• Clearing browser data will reset it\n\nFor shared tracking across your team, you’d need a database (e.g. Supabase). This can be added if you need it.`);
+      alert(`Got response / Reached out tracking:\n\n• With Vercel KV: syncs team-wide. Without KV: stored in this browser only\n• See README to enable team sync via Vercel KV\n• Clearing browser data will reset local storage`);
     });
 
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
