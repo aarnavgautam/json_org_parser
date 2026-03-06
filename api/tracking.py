@@ -36,6 +36,7 @@ def get_tracking_from_sheet():
         col_org = None
         col_response = None
         col_count = None
+        col_unsubscribed = None
         for fn in fieldnames:
             h = (fn or "").strip().lower().replace(" ", "").replace("_", "")
             if h in ("organizationid", "orgid", "id"):
@@ -44,6 +45,8 @@ def get_tracking_from_sheet():
                 col_response = fn
             elif h in ("outreachcount", "reachedout", "reachedoutcount", "contacted") or "outreach" in h or "reached" in h:
                 col_count = fn
+            elif h == "unsubscribed":
+                col_unsubscribed = fn
         if col_org is None:
             col_org = fieldnames[0]
         if col_response is None:
@@ -55,6 +58,11 @@ def get_tracking_from_sheet():
             for fn in fieldnames:
                 if "out" in (fn or "").lower() or "reach" in (fn or "").lower() or "contact" in (fn or "").lower():
                     col_count = fn
+                    break
+        if col_unsubscribed is None:
+            for fn in fieldnames:
+                if "unsubscribe" in (fn or "").lower():
+                    col_unsubscribed = fn
                     break
         out = {}
         for row in rows:
@@ -71,7 +79,12 @@ def get_tracking_from_sheet():
                     count = max(0, int(float((row.get(col_count) or "0").strip())))
                 except (ValueError, TypeError):
                     pass
-            out[org_id] = {"gotResponse": got_response, "outreachCount": count}
+            unsubscribed = False
+            if col_unsubscribed:
+                uv = (row.get(col_unsubscribed) or "").strip().lower()
+                if uv in ("y", "yes", "1", "true", "x", "✓", "✔"):
+                    unsubscribed = True
+            out[org_id] = {"gotResponse": got_response, "outreachCount": count, "unsubscribed": unsubscribed}
         return out
     except (csv.Error, ValueError, KeyError):
         return None

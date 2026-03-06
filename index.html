@@ -262,6 +262,7 @@
     .org-tracking .response-display { color: var(--text-muted, #888); }
     .org-tracking .response-display.has-response { color: var(--success, #2e7d32); }
     .org-tracking .outreach-display { color: var(--text-muted, #888); }
+    .org-tracking .unsubscribed-flag { color: #f85149; font-size: 0.8rem; }
     .contacts { font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
     .contact { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
     .contact-position { color: var(--text-muted); min-width: 120px; }
@@ -310,7 +311,7 @@
 
   <div class="toolbar">
     <div class="search">
-      <input type="text" id="search" placeholder="Search org name or description..." style="width:100%">
+      <input type="text" id="search" placeholder="Search org name, description, or contact name/email..." style="width:100%">
     </div>
     <select id="innovation_fit"><option value="">Innovation: Any</option></select>
     <select id="category"><option value="">Category: Any</option></select>
@@ -523,7 +524,7 @@
       }
       resultsEl.innerHTML = allOrgs.map(org => {
         const oid = String(org.OrganizationId);
-        const t = tracking[oid] || { gotResponse: false, outreachCount: 0 };
+        const t = tracking[oid] || { gotResponse: false, outreachCount: 0, unsubscribed: false };
         const tags = [...(org.Categories || [])];
         if (org.InnovationFit) tags.push(`Innovation: ${org.InnovationFit}`);
         const officers = (org.Officers || []).filter(o => o.Email);
@@ -542,6 +543,7 @@
               <div class="org-tracking">
                 <span class="response-display ${t.gotResponse ? 'has-response' : ''}">${t.gotResponse ? '✓ Got response' : 'No response yet'}</span>
                 <span class="outreach-display">Reached out: ${t.outreachCount}</span>
+                ${t.unsubscribed ? '<span class="unsubscribed-flag">Do not contact</span>' : ''}
               </div>
               <div class="contacts">
                 ${officers.map(o => `<div class="contact"><span class="contact-position">${escapeHtml(o.Position || '')}</span><a class="contact-email" href="mailto:${escapeHtml(o.Email || '')}">${escapeHtml(o.Email || '')}</a></div>`).join('')}

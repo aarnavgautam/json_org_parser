@@ -22,7 +22,14 @@ def matches_search(org, query):
     q = query.lower().strip()
     name = (org.get("OrganizationName") or "").lower()
     desc = (org.get("OrganizationDescription") or "").lower()
-    return q in name or q in desc
+    if q in name or q in desc:
+        return True
+    for officer in org.get("Officers", []):
+        officer_name = (officer.get("Name") or "").lower()
+        officer_email = (officer.get("Email") or "").lower()
+        if q in officer_name or q in officer_email:
+            return True
+    return False
 
 
 def matches_position_filter(org, position_filter):
@@ -61,7 +68,9 @@ def matches_custom_filter(org, custom_query):
     cats = " ".join(org.get("Categories", [])).lower()
     for officer in org.get("Officers", []):
         pos = (officer.get("Position") or "").lower()
-        if q in name or q in desc or q in cats or q in pos:
+        officer_name = (officer.get("Name") or "").lower()
+        officer_email = (officer.get("Email") or "").lower()
+        if q in name or q in desc or q in cats or q in pos or q in officer_name or q in officer_email:
             return True
     return False
 
