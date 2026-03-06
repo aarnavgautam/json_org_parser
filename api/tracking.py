@@ -116,33 +116,23 @@ def set_tracking(data):
 
 
 def _get_tracking():
-    """Get tracking data from Google Sheet first, else KV."""
+    """Get tracking data from Google Sheet only."""
     sheet = get_tracking_from_sheet()
     if sheet is not None:
         return sheet, "sheet"
-    kv_data = get_tracking()
-    if kv_data is not None:
-        return kv_data, "kv"
-    return None, None
+    return {}, "none"
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         data, source = _get_tracking()
-        if data is None:
-            self.send_response(503)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"error": "KV not configured"}).encode("utf-8")
-            )
-            return
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode("utf-8"))
+        out = dict(data)
+        out["_source"] = "google-sheet"
+        self.wfile.write(json.dumps(out).encode("utf-8"))
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -152,72 +142,12 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_PATCH(self):
-        _, source = _get_tracking()
-        if source == "sheet":
-            self.send_response(501)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"error": "Tracking is read from Google Sheet. Update the sheet directly."}).encode("utf-8")
-            )
-            return
-
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length <= 0:
-            self.send_response(400)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"error": "Bad request"}).encode("utf-8")
-            )
-            return
-        try:
-            body = self.rfile.read(content_length).decode("utf-8")
-            updates = json.loads(body)
-        except (json.JSONDecodeError, ValueError):
-            self.send_response(400)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"error": "Invalid JSON"}).encode("utf-8")
-            )
-            return
-
-        current = get_tracking()
-        if current is None:
-            self.send_response(503)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"error": "KV not configured"}).encode("utf-8")
-            )
-            return
-
-        for org_id, v in updates.items():
-            org_id = str(org_id)
-            if org_id and isinstance(v, dict):
-                existing = current.get(org_id, {})
-                current[org_id] = {
-                    "gotResponse": v.get("gotResponse", existing.get("gotResponse", False)),
-                    "outreachCount": v.get("outreachCount", existing.get("outreachCount", 0)),
-                }
-
-        if not set_tracking(current):
-            self.send_response(503)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"error": "Failed to save"}).encode("utf-8")
-            )
-            return
-
-        self.send_response(200)
+        self.send_response(501)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(json.dumps(current).encode("utf-8"))
+        self.wfile.write(
+            json.dumps({"error": "Tracking is read-only from Google Sheet. Update the sheet directly."}).encode("utf-8")
+        )
+        return
+

@@ -239,6 +239,9 @@
       line-height: 1;
     }
     .org-tracking .outreach-count button:hover { background: var(--surface-hover); }
+    .org-tracking .response-display { color: var(--text-muted, #888); }
+    .org-tracking .response-display.has-response { color: var(--success, #2e7d32); }
+    .org-tracking .outreach-display { color: var(--text-muted, #888); }
     .contacts { font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
     .contact { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
     .contact-position { color: var(--text-muted); min-width: 120px; }
@@ -349,29 +352,18 @@
     function loadTracking() {
       fetch(`${API}/api/tracking`)
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => { tracking = data || {}; if (allOrgs.length) renderOrgs(); })
+        .then(data => {
+          const src = data && data._source;
+          tracking = (src && data) ? (() => { const { _source, ...rest } = data; return rest; })() : (data || {});
+          if (allOrgs.length) renderOrgs();
+        })
         .catch(() => {
-          try {
-            const s = localStorage.getItem(STORAGE_KEY);
-            tracking = s ? JSON.parse(s) : {};
-          } catch { tracking = {}; }
+          tracking = {};
           if (allOrgs.length) renderOrgs();
         });
     }
     // Poll tracking every 30s so Google Sheet updates show live
     setInterval(loadTracking, 30000);
-
-    function saveTracking() {
-      fetch(`${API}/api/tracking`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tracking)
-      }).then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => { if (data) tracking = data; })
-        .catch(() => {
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tracking)); } catch (_) {}
-        });
-    }
 
     function getPositionParam() {
       const checked = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value);
@@ -506,16 +498,8 @@
                 ${tags.map(tag => `<span class="tag ${tag.includes('Strong') ? 'innovation-strong' : ''} ${tag.includes('Roundtable') ? 'roundtable' : ''}">${escapeHtml(tag)}</span>`).join('')}
               </div>
               <div class="org-tracking">
-                <label class="response-flag">
-                  <input type="checkbox" data-org-id="${escapeHtml(oid)}" data-action="response" ${t.gotResponse ? 'checked' : ''}>
-                  Got response
-                </label>
-                <div class="outreach-count">
-                  <span>Reached out:</span>
-                  <button type="button" data-org-id="${escapeHtml(oid)}" data-action="decr">−</button>
-                  <span data-org-id="${escapeHtml(oid)}" class="outreach-num">${t.outreachCount}</span>
-                  <button type="button" data-org-id="${escapeHtml(oid)}" data-action="incr">+</button>
-                </div>
+                <span class="response-display ${t.gotResponse ? 'has-response' : ''}">${t.gotResponse ? '✓ Got response' : '—'}</span>
+                <span class="outreach-display">Reached out: ${t.outreachCount}</span>
               </div>
               <div class="contacts">
                 ${officers.map(o => `<div class="contact"><span class="contact-position">${escapeHtml(o.Position || '')}</span><a class="contact-email" href="mailto:${escapeHtml(o.Email || '')}">${escapeHtml(o.Email || '')}</a></div>`).join('')}
@@ -539,35 +523,6 @@
           card.classList.toggle('selected', newSel);
         });
       });
-      resultsEl.querySelectorAll('[data-action="response"]').forEach(cb => {
-        cb.addEventListener('change', () => {
-          const id = cb.dataset.orgId;
-          if (!tracking[id]) tracking[id] = { gotResponse: false, outreachCount: 0 };
-          tracking[id].gotResponse = cb.checked;
-          saveTracking();
-        });
-      });
-      resultsEl.querySelectorAll('.outreach-count button[data-action="incr"]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.orgId;
-          if (!tracking[id]) tracking[id] = { gotResponse: false, outreachCount: 0 };
-          tracking[id].outreachCount = (tracking[id].outreachCount || 0) + 1;
-          saveTracking();
-          const span = resultsEl.querySelector(`.outreach-num[data-org-id="${id}"]`);
-          if (span) span.textContent = tracking[id].outreachCount;
-        });
-      });
-      resultsEl.querySelectorAll('.outreach-count button[data-action="decr"]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.orgId;
-          if (!tracking[id]) tracking[id] = { gotResponse: false, outreachCount: 0 };
-          tracking[id].outreachCount = Math.max(0, (tracking[id].outreachCount || 0) - 1);
-          saveTracking();
-          const span = resultsEl.querySelector(`.outreach-num[data-org-id="${id}"]`);
-          if (span) span.textContent = tracking[id].outreachCount;
-        });
-      });
-
       updateExportState();
     }
 
@@ -638,7 +593,7 @@
     });
 
     document.getElementById('tracking-info-btn')?.addEventListener('click', () => {
-      alert(`Got response / Reached out tracking:\n\n• Google Sheet: Set GOOGLE_SHEET_TRACKING_URL in Vercel. Edit the sheet manually; data refreshes every 30s.\n• Vercel KV: Syncs team-wide when configured. See README.\n• Otherwise: stored in this browser only.`);
+      alert(`Got response / Reached out tracking:\n\nData is read from your Google Sheet only. Set GOOGLE_SHEET_TRACKING_URL in Vercel and edit the sheet manually. The app refreshes every 30s.`);
     });
 
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
