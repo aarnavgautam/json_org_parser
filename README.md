@@ -9,9 +9,24 @@ Searchable directory of 1,000+ UF student organizations. Filter, select, export 
 3. Deploy — Vercel runs `build_data.py` and serves the app
 4. Share the live link with coworkers
 
-### Team-wide tracking (free)
+### Team-wide tracking
 
-To sync "Got response" and "Reached out" across your team:
+**Option A: Google Sheets (recommended, no setup beyond Vercel)**
+
+1. Create a Google Sheet with columns: **OrganizationId**, **GotResponse**, **OutreachCount**
+   - **OrganizationId** = numeric ID from the app (e.g. 2470 for "180 Degrees Consulting at UF")
+   - **GotResponse** = `Y` or `N` (or Yes/No, 1/0, ✓ for yes)
+   - **OutreachCount** = number of times you reached out
+   - Tip: Add an extra **OrganizationName** column for your reference; the app uses OrganizationId only for matching.
+2. **File → Share → Publish to web** → choose **Comma-separated values (.csv)** → Publish
+3. Copy the CSV URL (e.g. `https://docs.google.com/spreadsheets/d/xxx/export?format=csv&gid=0`)
+4. In Vercel: **Settings → Environment Variables** → add:
+   - `GOOGLE_SHEET_TRACKING_URL` = your published CSV URL
+5. Redeploy
+
+The app reads from the sheet every 30 seconds. Edit the sheet manually; changes appear on the page automatically. Works in incognito and for all users.
+
+**Option B: Vercel KV (Upstash Redis)**
 
 1. In Vercel Dashboard → your project → **Storage**
 2. Click **Create Database** → choose **KV** (Upstash)
@@ -19,7 +34,7 @@ To sync "Got response" and "Reached out" across your team:
 4. Click **Connect** to link it to your project
 5. Redeploy the project
 
-Vercel will add `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically. Tracking will sync for everyone using the live site.
+Vercel adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically. Tracking syncs when users change it in the app (not from a sheet).
 
 ## Local development
 

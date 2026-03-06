@@ -358,6 +358,8 @@
           if (allOrgs.length) renderOrgs();
         });
     }
+    // Poll tracking every 30s so Google Sheet updates show live
+    setInterval(loadTracking, 30000);
 
     function saveTracking() {
       fetch(`${API}/api/tracking`, {
@@ -636,7 +638,7 @@
     });
 
     document.getElementById('tracking-info-btn')?.addEventListener('click', () => {
-      alert(`Got response / Reached out tracking:\n\n• With Vercel KV: syncs team-wide. Without KV: stored in this browser only\n• See README to enable team sync via Vercel KV\n• Clearing browser data will reset local storage`);
+      alert(`Got response / Reached out tracking:\n\n• Google Sheet: Set GOOGLE_SHEET_TRACKING_URL in Vercel. Edit the sheet manually; data refreshes every 30s.\n• Vercel KV: Syncs team-wide when configured. See README.\n• Otherwise: stored in this browser only.`);
     });
 
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
