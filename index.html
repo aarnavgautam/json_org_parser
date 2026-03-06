@@ -65,6 +65,10 @@
       outline: none;
       border-color: var(--accent);
     }
+    .toolbar select[multiple] {
+      min-height: 5.4rem;
+      padding: 0.35rem 0.5rem;
+    }
 
     .positions-panel {
       background: var(--surface);
@@ -139,6 +143,12 @@
     .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-top: 0.25rem; }
     .event-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
     .event-full-label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem; margin-bottom: 0.25rem; }
+    .verify-panel {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+    }
+    .verify-panel summary { cursor: pointer; color: var(--text-muted); }
 
     .actions-bar {
       display: flex;
@@ -171,8 +181,11 @@
 
     .content { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
     .results-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
-    .relevance-sort-row, .results-limit-row { display: flex; align-items: center; gap: 0.5rem; }
+    .relevance-sort-row, .results-limit-row, .pagination-row { display: flex; align-items: center; gap: 0.5rem; }
     .relevance-sort-row select, .results-limit-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .pagination-row .btn { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+    #page-info { min-width: 8rem; text-align: center; }
+
     .btn-link { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; padding: 0 0.25rem; }
     .btn-link:hover { color: var(--accent); }
 
@@ -194,9 +207,19 @@
     .org-desc {
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.25rem;
       line-height: 1.4;
+      white-space: pre-wrap;
     }
+    .org-desc.collapsed {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .desc-toggle { margin-bottom: 0.5rem; }
+
     .org-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
     .tag {
       background: var(--tag);
@@ -282,8 +305,6 @@
         </ol>
       </div>
       <textarea id="event-details" placeholder="Paste your AI-expanded event description here..." rows="4"></textarea>
-      <label class="event-full-label" for="event-full">Full event description (for AI verification):</label>
-      <textarea id="event-full" placeholder="Paste your original, full event description here. Used when copying for AI to verify relevance." rows="3"></textarea>
       <div class="event-actions">
         <button type="button" class="btn" id="match-event-btn">Find relevant orgs</button>
         <button type="button" class="btn btn-outline" id="clear-event-btn">Clear & show all</button>
@@ -295,8 +316,8 @@
     <div class="search">
       <input type="text" id="search" placeholder="Search org name, description, or contact name/email..." style="width:100%">
     </div>
-    <select id="innovation_fit"><option value="">Innovation: Any</option></select>
-    <select id="category"><option value="">Category: Any</option></select>
+    <select id="innovation_fit" multiple size="3" title="Innovation strength (multi-select)"></select>
+    <select id="category" multiple size="4" title="Category (multi-select)"></select>
     <input type="text" id="custom" placeholder="Custom keywords..." style="width:160px">
     <button type="button" class="btn btn-outline" id="clear-filters-btn" title="Clear all filters">Clear all</button>
   </div>
@@ -320,21 +341,24 @@
     <button type="button" class="btn btn-outline" id="select-all">Select all visible</button>
     <button type="button" class="btn btn-outline" id="deselect-all">Deselect all</button>
     <button type="button" class="btn" id="export-btn" disabled>Export selected to CSV</button>
-    <button type="button" class="btn btn-outline" id="copy-ai-verify-btn" title="Copy visible orgs + event + prompt for ChatGPT to verify relevance">Copy for AI verification</button>
+    <button type="button" class="btn btn-outline" id="expand-all-desc-btn">Expand all descriptions</button>
+  </div>
+
+  <div class="verify-panel">
+    <details>
+      <summary>Optional: AI verification</summary>
+      <label class="event-full-label" for="event-full">Full event description (for AI verification):</label>
+      <textarea id="event-full" placeholder="Paste your original, full event description here. Used only for AI verification copy output." rows="4"></textarea>
+      <div class="event-actions">
+        <button type="button" class="btn btn-outline" id="copy-ai-verify-btn" title="Copy visible orgs + event + prompt for ChatGPT to verify relevance">Copy for AI verification</button>
+      </div>
+    </details>
   </div>
 
   <main class="content">
     <div class="results-meta-row">
       <span id="meta"></span>
       <span id="relevance-sort-row" class="relevance-sort-row" style="display:none">
-        <label>Show top:</label>
-        <select id="show-top-n">
-          <option value="25">25</option>
-          <option value="50" selected>50</option>
-          <option value="100">100</option>
-          <option value="200">200</option>
-          <option value="9999">All</option>
-        </select>
         <label>Sort:</label>
         <select id="relevance-sort">
           <option value="desc">High → Low</option>
@@ -343,13 +367,18 @@
         <button type="button" class="btn-link" id="relevance-help-btn" title="How relevance works">?</button>
       </span>
       <span id="results-limit-row" class="results-limit-row">
-        <label>Show per page:</label>
+        <label>Per page:</label>
         <select id="show-per-page">
           <option value="50">50</option>
           <option value="100">100</option>
+          <option value="150">150</option>
           <option value="200">200</option>
-          <option value="9999">All</option>
         </select>
+      </span>
+      <span id="pagination-row" class="pagination-row">
+        <button type="button" class="btn btn-outline" id="page-prev">Prev</button>
+        <span id="page-info">Page 1</span>
+        <button type="button" class="btn btn-outline" id="page-next">Next</button>
       </span>
     </div>
     <div id="results"></div>
@@ -381,7 +410,10 @@
     let selectedIds = new Set();
     let tracking = {};
     let eventRelevancy = {}; // { orgId: { score, rawScore, matchCount } }
-    let displayOrgs = null; // when set, only these orgs shown (event match mode)
+    let displayOrgs = null; // when set, event-ranked list
+    let currentPage = 1;
+    let expandAllDescriptions = false;
+    const expandedDescIds = new Set();
 
     function debounce(fn, ms) {
       return () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(fn, ms); };
@@ -416,9 +448,30 @@
       return checked.length === 0 || checked.length === 4 ? '' : checked.join(',');
     }
 
+    function getMultiSelectParam(selectEl) {
+      const values = [...selectEl.selectedOptions].map(o => o.value).filter(Boolean);
+      return values.length ? values.join(',') : '';
+    }
+
+    function enableClickMultiSelect(selectEl) {
+      selectEl.addEventListener('mousedown', (e) => {
+        if (e.target.tagName !== 'OPTION') return;
+        e.preventDefault();
+        e.target.selected = !e.target.selected;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    function getCurrentBaseOrgs() {
+      return displayOrgs || allOrgs;
+    }
+
+    function getPageSize() {
+      return parseInt(document.getElementById('show-per-page')?.value || '50', 10) || 50;
+    }
+
     const STOPWORDS = new Set('the a an and or but in on at to for of with by from as is was are were be been being have has had do does did will would could should may might must can'.split(' '));
     const MIN_KEYWORD_LEN = 3;
-    const DEFAULT_TOP_N = 50;
 
     function extractKeywords(text) {
       if (!text || !text.trim()) return [];
@@ -436,8 +489,6 @@
       const name = (org.OrganizationName || '').toLowerCase();
       const desc = (org.OrganizationDescription || '').toLowerCase();
       const cats = (org.Categories || []).join(' ').toLowerCase();
-      const allText = [name, desc, cats].join(' ');
-
       let rawScore = 0;
       let matchCount = 0;
       for (const kw of keywords) {
@@ -471,13 +522,10 @@
         const oid = String(org.OrganizationId);
         eventRelevancy[oid] = computeRelevancy(eventText, org);
       }
-      const mult = (document.getElementById('relevance-sort')?.value || 'desc') === 'desc' ? -1 : 1;
-      const sorted = [...allOrgs].sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.rawScore || 0) - (eventRelevancy[String(b.OrganizationId)]?.rawScore || 0)));
-      const topN = parseInt(document.getElementById('show-top-n')?.value || String(DEFAULT_TOP_N), 10) || 9999;
-      displayOrgs = topN < 9999 ? sorted.slice(0, topN) : sorted;
+      displayOrgs = [...allOrgs];
+      sortByRelevancy();
+      currentPage = 1;
       document.getElementById('relevance-sort-row').style.display = 'flex';
-      document.getElementById('results-limit-row').style.display = 'none';
-      metaEl.textContent = `Showing top ${displayOrgs.length} of ${allOrgs.length} (ranked by relevance)`;
       renderOrgs();
     }
 
@@ -486,20 +534,21 @@
       relevanceSortOrder = document.getElementById('relevance-sort')?.value || 'desc';
       const mult = relevanceSortOrder === 'desc' ? -1 : 1;
       displayOrgs.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.rawScore || 0) - (eventRelevancy[String(b.OrganizationId)]?.rawScore || 0)));
-      renderOrgs();
     }
 
     function clearEventMatch() {
       document.getElementById('event-details').value = '';
       eventRelevancy = {};
       displayOrgs = null;
+      currentPage = 1;
       document.getElementById('relevance-sort-row').style.display = 'none';
-      document.getElementById('results-limit-row').style.display = 'flex';
       fetchOrgs();
     }
 
     function fetchFilters() {
       fetch(`${API}/api/filters`).then(r => r.json()).then(data => {
+        innovationEl.innerHTML = '';
+        categoryEl.innerHTML = '';
         data.innovation_fits.forEach(fit => {
           const o = document.createElement('option'); o.value = fit; o.textContent = fit; innovationEl.appendChild(o);
         });
@@ -513,8 +562,8 @@
       const params = new URLSearchParams();
       const search = searchEl.value.trim();
       const position = getPositionParam();
-      const innovation = innovationEl.value.trim();
-      const category = categoryEl.value.trim();
+      const innovation = getMultiSelectParam(innovationEl);
+      const category = getMultiSelectParam(categoryEl);
       const custom = customEl.value.trim();
       if (search) params.set('search', search);
       if (position) params.set('position', position);
@@ -528,23 +577,43 @@
         .then(r => r.json())
         .then(data => {
           allOrgs = data.organizations;
-          displayOrgs = null;
-          eventRelevancy = {};
-          document.getElementById('results-limit-row').style.display = 'flex';
-          renderOrgs();
+          currentPage = 1;
+          if (displayOrgs !== null && document.getElementById('event-details').value.trim()) {
+            matchToEvent();
+          } else {
+            displayOrgs = null;
+            eventRelevancy = {};
+            renderOrgs();
+          }
         })
         .catch(() => { resultsEl.innerHTML = '<div class="error">Failed to load data.</div>'; });
     }
 
     function renderOrgs() {
-      let orgsToShow = displayOrgs || allOrgs;
-      const perPage = parseInt(document.getElementById('show-per-page')?.value || '9999', 10) || 9999;
-      if (!displayOrgs && perPage < 9999) {
-        orgsToShow = orgsToShow.slice(0, perPage);
-        metaEl.textContent = `Showing 1–${orgsToShow.length} of ${allOrgs.length} organization${allOrgs.length !== 1 ? 's' : ''}`;
-      } else if (!displayOrgs) {
-        metaEl.textContent = `${allOrgs.length} organization${allOrgs.length !== 1 ? 's' : ''} found`;
+      const base = getCurrentBaseOrgs();
+      const pageSize = getPageSize();
+      const total = base.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      currentPage = Math.min(Math.max(1, currentPage), totalPages);
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, total);
+      const orgsToShow = base.slice(start, end);
+
+      const pageInfoEl = document.getElementById('page-info');
+      const prevBtn = document.getElementById('page-prev');
+      const nextBtn = document.getElementById('page-next');
+      pageInfoEl.textContent = total ? `${start + 1}-${end} of ${total}` : '0-0 of 0';
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+
+      if (displayOrgs) {
+        metaEl.textContent = total ? `Showing ${start + 1}-${end} of ${total} (ranked by relevance)` : 'No organizations ranked yet.';
+        document.getElementById('relevance-sort-row').style.display = 'flex';
+      } else {
+        metaEl.textContent = total ? `Showing ${start + 1}-${end} of ${total} organization${total !== 1 ? 's' : ''}` : '0 organizations found';
+        document.getElementById('relevance-sort-row').style.display = 'none';
       }
+
       if (!orgsToShow.length) {
         resultsEl.innerHTML = displayOrgs !== null
           ? '<div class="loading">No organizations match your event. Try adding more specific terms (industries, topics, activity types) from your AI output.</div>'
@@ -552,6 +621,7 @@
         updateExportState();
         return;
       }
+
       resultsEl.innerHTML = orgsToShow.map(org => {
         const oid = String(org.OrganizationId);
         const t = tracking[oid] || { gotResponse: false, outreachCount: 0, unsubscribed: false };
@@ -559,14 +629,13 @@
         if (org.InnovationFit) tags.push(`Innovation: ${org.InnovationFit}`);
         const officers = (org.Officers || []).filter(o => o.Email);
         const checked = selectedIds.has(oid) ? 'checked' : '';
-        const rel = eventRelevancy[oid];
-        const relevanceHtml = rel && displayOrgs ? '' : '';
+        const expanded = expandAllDescriptions || expandedDescIds.has(oid);
         return `
           <article class="org-card ${checked ? 'selected' : ''}" data-org-id="${escapeHtml(oid)}">
             <input type="checkbox" class="org-checkbox" ${checked} data-org-id="${escapeHtml(oid)}" aria-label="Select">
             <div class="org-main">
-              <div class="org-name">${escapeHtml(org.OrganizationName)}${relevanceHtml}</div>
-              ${org.OrganizationDescription ? `<div class="org-desc">${escapeHtml(org.OrganizationDescription)}</div>` : ''}
+              <div class="org-name">${escapeHtml(org.OrganizationName)}</div>
+              ${org.OrganizationDescription ? `<div class="org-desc ${expanded ? '' : 'collapsed'}" data-org-id="${escapeHtml(oid)}">${escapeHtml(org.OrganizationDescription)}</div><button type="button" class="btn-link desc-toggle" data-org-id="${escapeHtml(oid)}">${expanded ? 'Show less' : 'Show more'}</button>` : ''}
               <div class="org-tags">
                 ${tags.map(tag => `<span class="tag ${tag.includes('Strong') ? 'innovation-strong' : ''}">${escapeHtml(tag)}</span>`).join('')}
               </div>
@@ -585,6 +654,15 @@
 
       resultsEl.querySelectorAll('.org-checkbox').forEach(cb => {
         cb.addEventListener('change', () => toggleSelect(cb.dataset.orgId, cb.checked));
+      });
+      resultsEl.querySelectorAll('.desc-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.orgId;
+          if (expandedDescIds.has(id)) expandedDescIds.delete(id);
+          else expandedDescIds.add(id);
+          renderOrgs();
+        });
       });
       resultsEl.querySelectorAll('.org-card').forEach(card => {
         card.addEventListener('click', (e) => {
@@ -615,17 +693,36 @@
     }
 
     function buildTextForAiVerification() {
-      const orgsToShow = displayOrgs || allOrgs;
-      const perPage = parseInt(document.getElementById('show-per-page')?.value || '9999', 10) || 9999;
-      const orgs = !displayOrgs && perPage < 9999 ? orgsToShow.slice(0, perPage) : orgsToShow;
+      const base = getCurrentBaseOrgs();
+      const pageSize = getPageSize();
+      const startIdx = (currentPage - 1) * pageSize;
+      const endIdx = Math.min(startIdx + pageSize, base.length);
+      const orgs = base.slice(startIdx, endIdx);
       const eventFull = (document.getElementById('event-full')?.value || '').trim();
+      const eventKeywords = (document.getElementById('event-details')?.value || '').trim();
       const positions = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value);
       const wantAllPositions = positions.length === 0 || positions.length === 4;
       const positionTypes = new Set(positions.map(p => p.toLowerCase()));
+      const innovation = getMultiSelectParam(innovationEl) || 'Any';
+      const category = getMultiSelectParam(categoryEl) || 'Any';
+      const search = searchEl.value.trim() || '(none)';
+      const custom = customEl.value.trim() || '(none)';
 
       const lines = [];
       lines.push('EVENT TO VERIFY RELEVANCE FOR:');
-      lines.push(eventFull || '(No event description provided—add your full event above.)');
+      lines.push(eventFull || '(No full event description provided.)');
+      lines.push('');
+      lines.push('EVENT KEYWORDS INPUT USED FOR MATCHING:');
+      lines.push(eventKeywords || '(none)');
+      lines.push('');
+      lines.push('ACTIVE FILTERS:');
+      lines.push(`- Search: ${search}`);
+      lines.push(`- Innovation strength: ${innovation}`);
+      lines.push(`- Category: ${category}`);
+      lines.push(`- Custom keywords: ${custom}`);
+      lines.push(`- Positions: ${wantAllPositions ? 'All' : positions.join(', ')}`);
+      lines.push(`- Page: ${currentPage}`);
+      lines.push(`- Range: ${startIdx + 1}-${endIdx} of ${base.length}`);
       lines.push('');
       lines.push('---');
       lines.push('');
@@ -651,7 +748,7 @@
       }
 
       lines.push('PROMPT FOR AI:');
-      lines.push('Review the event above and each organization below. Return ONLY the organizations that are relevant to this event. For each relevant org, include: (1) Organization name, (2) Brief description, (3) Contacts formatted as: Position - Name (email), one per line. Format your response so I can easily copy contact info for outreach.');
+      lines.push('Review the event above and each organization below. Return ONLY the organizations that are relevant to this event. For each relevant org, include: (1) Organization name, (2) Brief description, (3) Contacts formatted as: Position - Name (email), one per line. Keep the contact formatting exactly for outreach copy/paste.');
       return lines.join('\n');
     }
 
@@ -660,7 +757,11 @@
     }
 
     selectAllBtn.addEventListener('click', () => {
-      allOrgs.forEach(org => selectedIds.add(String(org.OrganizationId)));
+      const base = getCurrentBaseOrgs();
+      const pageSize = getPageSize();
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, base.length);
+      base.slice(start, end).forEach(org => selectedIds.add(String(org.OrganizationId)));
       selectedCountEl.textContent = `${selectedIds.size} selected`;
       renderOrgs();
     });
@@ -700,16 +801,18 @@
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
     document.getElementById('clear-filters-btn').addEventListener('click', () => {
       searchEl.value = '';
-      innovationEl.value = '';
-      categoryEl.value = '';
+      [...innovationEl.options].forEach(o => { o.selected = false; });
+      [...categoryEl.options].forEach(o => { o.selected = false; });
       customEl.value = '';
       [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = true);
       document.getElementById('event-details').value = '';
       document.getElementById('event-full').value = '';
       eventRelevancy = {};
       displayOrgs = null;
-      document.getElementById('relevance-sort-row').style.display = 'none';
-      document.getElementById('results-limit-row').style.display = 'flex';
+      currentPage = 1;
+      expandedDescIds.clear();
+      expandAllDescriptions = false;
+      document.getElementById('expand-all-desc-btn').textContent = 'Expand all descriptions';
       fetchOrgs();
     });
     document.getElementById('copy-ai-verify-btn').addEventListener('click', () => {
@@ -733,26 +836,39 @@
     });
 
     document.getElementById('relevance-sort')?.addEventListener('change', () => {
-      if (displayOrgs) { sortByRelevancy(); renderOrgs(); }
-    });
-    document.getElementById('show-top-n')?.addEventListener('change', () => {
-      if (displayOrgs && Object.keys(eventRelevancy).length) {
-        const topN = parseInt(document.getElementById('show-top-n').value, 10) || 9999;
-        const mult = (document.getElementById('relevance-sort')?.value || 'desc') === 'desc' ? -1 : 1;
-        const sorted = [...allOrgs].sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.rawScore || 0) - (eventRelevancy[String(b.OrganizationId)]?.rawScore || 0)));
-        displayOrgs = topN < 9999 ? sorted.slice(0, topN) : sorted;
-        metaEl.textContent = `Showing top ${displayOrgs.length} of ${allOrgs.length} (ranked by relevance)`;
+      if (displayOrgs) {
+        sortByRelevancy();
+        currentPage = 1;
         renderOrgs();
       }
     });
-    document.getElementById('show-per-page')?.addEventListener('change', () => renderOrgs());
+    document.getElementById('show-per-page')?.addEventListener('change', () => {
+      currentPage = 1;
+      renderOrgs();
+    });
+    document.getElementById('page-prev')?.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        renderOrgs();
+      }
+    });
+    document.getElementById('page-next')?.addEventListener('click', () => {
+      currentPage += 1;
+      renderOrgs();
+    });
+    document.getElementById('expand-all-desc-btn')?.addEventListener('click', () => {
+      expandAllDescriptions = !expandAllDescriptions;
+      if (expandAllDescriptions) expandedDescIds.clear();
+      document.getElementById('expand-all-desc-btn').textContent = expandAllDescriptions ? 'Collapse all descriptions' : 'Expand all descriptions';
+      renderOrgs();
+    });
 
     document.getElementById('tracking-info-btn')?.addEventListener('click', () => {
       alert(`Got response / Reached out tracking:\n\nData is read from your Google Sheet only. Set GOOGLE_SHEET_TRACKING_URL in Vercel and edit the sheet manually. The app refreshes every 30s.`);
     });
 
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
-      alert(`How relevance matching works:\n\n• All orgs are ranked by relevance score. You see the top N (25, 50, 100, 200, or All).\n• Scoring: name match +3, category +2, description +1. Bonuses for innovation/roundtable.\n• Use specific terms in your AI output (robotics, startups, prototyping) rather than broad ones (design, business, service) for better differentiation.`);
+      alert(`How relevance matching works:\n\n• All orgs are ranked by relevance score and paginated by your per-page setting.\n• Scoring: name match +3, category +2, description +1. Bonuses for innovation/roundtable.\n• Use specific terms in your AI output (robotics, startups, prototyping) rather than broad ones (design, business, service) for better differentiation.`);
     });
 
     [searchEl, innovationEl, categoryEl, customEl].forEach(el => {
@@ -760,6 +876,8 @@
       else el.addEventListener('change', fetchOrgs);
     });
 
+    enableClickMultiSelect(innovationEl);
+    enableClickMultiSelect(categoryEl);
     loadTracking();
     fetchFilters();
     fetchOrgs();

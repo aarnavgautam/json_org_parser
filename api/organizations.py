@@ -38,18 +38,31 @@ def matches_position_filter(org, position_filter):
     return False
 
 
+def _parse_multi_values(raw):
+    if not raw:
+        return []
+    values = []
+    for v in raw.split(","):
+        t = v.strip().lower()
+        if t and t != "any":
+            values.append(t)
+    return values
+
+
 def matches_innovation_filter(org, innovation_filter):
-    if not innovation_filter or innovation_filter.lower() == "any":
+    wanted = _parse_multi_values(innovation_filter)
+    if not wanted:
         return True
     fit = (org.get("InnovationFit") or "").lower()
-    return fit == innovation_filter.lower()
+    return fit in wanted
 
 
 def matches_category_filter(org, category_filter):
-    if not category_filter or category_filter.lower() == "any":
+    wanted = set(_parse_multi_values(category_filter))
+    if not wanted:
         return True
-    cats = [c.lower() for c in org.get("Categories", [])]
-    return category_filter.lower() in cats
+    cats = {(c or "").lower() for c in org.get("Categories", [])}
+    return bool(cats.intersection(wanted))
 
 
 def matches_custom_filter(org, custom_query):
