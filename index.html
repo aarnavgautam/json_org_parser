@@ -167,7 +167,11 @@
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .content { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-    .results-meta { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .results-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .relevance-sort-row { display: flex; align-items: center; gap: 0.5rem; }
+    .relevance-sort-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .btn-link { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; padding: 0 0.25rem; }
+    .btn-link:hover { color: var(--accent); }
 
     .org-card {
       background: var(--surface);
@@ -252,7 +256,7 @@
   </script>
   <header class="header">
     <h1>UF Organizations Directory</h1>
-    <p>Search, filter, select orgs, export contacts, track outreach</p>
+    <p>Search, filter, select orgs, export contacts, track outreach <button type="button" class="btn-link" id="tracking-info-btn" title="About tracking">ℹ️</button></p>
   </header>
 
   <div class="event-panel">
@@ -297,7 +301,17 @@
   </div>
 
   <main class="content">
-    <div class="results-meta" id="meta"></div>
+    <div class="results-meta-row">
+      <span id="meta"></span>
+      <span id="relevance-sort-row" class="relevance-sort-row" style="display:none">
+        <label>Sort by relevance:</label>
+        <select id="relevance-sort">
+          <option value="desc">High → Low</option>
+          <option value="asc">Low → High</option>
+        </select>
+        <button type="button" class="btn-link" id="relevance-help-btn" title="How relevance works">?</button>
+      </span>
+    </div>
     <div id="results"></div>
   </main>
 
@@ -386,6 +400,8 @@
       return { stars, score: normalized };
     }
 
+    let relevanceSortOrder = 'desc';
+
     function matchToEvent() {
       const eventText = document.getElementById('event-details').value.trim();
       if (!eventText) return;
@@ -394,14 +410,23 @@
         const oid = String(org.OrganizationId);
         eventRelevancy[oid] = computeRelevancy(eventText, org);
       }
-      allOrgs.sort((a, b) => (eventRelevancy[String(b.OrganizationId)]?.score || 0) - (eventRelevancy[String(a.OrganizationId)]?.score || 0));
+      relevanceSortOrder = document.getElementById('relevance-sort')?.value || 'desc';
+      sortByRelevancy();
+      document.getElementById('relevance-sort-row').style.display = 'flex';
       metaEl.textContent = `${allOrgs.length} organizations, sorted by event relevance`;
       renderOrgs();
+    }
+
+    function sortByRelevancy() {
+      if (!Object.keys(eventRelevancy).length) return;
+      const mult = relevanceSortOrder === 'desc' ? -1 : 1;
+      allOrgs.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.score || 0) - (eventRelevancy[String(b.OrganizationId)]?.score || 0)));
     }
 
     function clearEventMatch() {
       document.getElementById('event-details').value = '';
       eventRelevancy = {};
+      document.getElementById('relevance-sort-row').style.display = 'none';
       fetchOrgs();
     }
 
@@ -589,6 +614,22 @@
 
     document.getElementById('match-event-btn').addEventListener('click', matchToEvent);
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
+
+    document.getElementById('relevance-sort')?.addEventListener('change', (e) => {
+      relevanceSortOrder = e.target.value;
+      if (Object.keys(eventRelevancy).length) {
+        sortByRelevancy();
+        renderOrgs();
+      }
+    });
+
+    document.getElementById('tracking-info-btn')?.addEventListener('click', () => {
+      alert(`Got response / Reached out tracking:\n\n• Stored in your browser only (localStorage)\n• Persists across sessions on THIS device/browser\n• Does NOT sync across devices or with coworkers\n• Clearing browser data will reset it\n\nFor shared tracking across your team, you’d need a database (e.g. Supabase). This can be added if you need it.`);
+    });
+
+    document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
+      alert(`How relevance scoring works:\n\n• Keywords are extracted from your event text (words 3+ chars, excluding common words like "the", "and").\n• Each org is scored by keyword matches:\n  - In org name: +3 pts each\n  - In categories (Design, Tech, etc.): +2 pts each\n  - In description: +1 pt each\n• Bonus: +2 if event mentions "innovation" and org has Strong innovation fit\n• Bonus: +1.5 if event mentions "roundtable" and org is roundtable recommended\n• Score is normalized to 0-1, then mapped to 1-3 stars (0.65+ = 3★, 0.45+ = 2★, else 1★)\n\nAccuracy: This is keyword-based, not AI. It works best when event text uses concrete terms (design, tech, entrepreneur, etc.). Spot-check high vs low relevance orgs to validate.`);
+    });
 
     [searchEl, innovationEl, categoryEl, customEl].forEach(el => {
       if (el === searchEl || el === customEl) el.addEventListener('input', debounce(fetchOrgs, 300));

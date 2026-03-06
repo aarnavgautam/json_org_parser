@@ -45,7 +45,11 @@
     .btn-outline:hover { background: var(--accent-dim); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .content { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-    .results-meta { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .results-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .relevance-sort-row { display: flex; align-items: center; gap: 0.5rem; }
+    .relevance-sort-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .btn-link { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; padding: 0 0.25rem; }
+    .btn-link:hover { color: var(--accent); }
     .org-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; gap: 1rem; align-items: flex-start; }
     .org-card:hover { border-color: var(--accent); }
     .org-card.selected { border-color: var(--accent); background: var(--accent-dim); }
@@ -76,7 +80,7 @@
   <script>window.API_BASE = '';</script>
   <header class="header">
     <h1>UF Organizations Directory</h1>
-    <p>Search, filter, select orgs, export contacts, track outreach</p>
+    <p>Search, filter, select orgs, export contacts, track outreach <button type="button" class="btn-link" id="tracking-info-btn" title="About tracking">ℹ️</button></p>
   </header>
   <div class="event-panel">
     <details>
@@ -114,7 +118,14 @@
     <button type="button" class="btn" id="export-btn" disabled>Export selected to CSV</button>
   </div>
   <main class="content">
-    <div class="results-meta" id="meta"></div>
+    <div class="results-meta-row">
+      <span id="meta"></span>
+      <span id="relevance-sort-row" class="relevance-sort-row" style="display:none">
+        <label>Sort by relevance:</label>
+        <select id="relevance-sort"><option value="desc">High → Low</option><option value="asc">Low → High</option></select>
+        <button type="button" class="btn-link" id="relevance-help-btn" title="How relevance works">?</button>
+      </span>
+    </div>
     <div id="results"></div>
   </main>
   <script>
@@ -144,8 +155,10 @@
     const STOPWORDS = new Set('the a an and or but in on at to for of with by from as is was are were be been being have has had do does did will would could should may might must can'.split(' '));
     function extractKeywords(t) { if (!t || !t.trim()) return []; return t.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!STOPWORDS.has(w)); }
     function computeRelevancy(ev, org) { const kw = extractKeywords(ev); if (!kw.length) return { stars: 0, score: 0 }; const name = (org.OrganizationName||'').toLowerCase(), desc = (org.OrganizationDescription||'').toLowerCase(), cats = (org.Categories||[]).join(' ').toLowerCase(); let sc = 0; for (const k of kw) { if (name.includes(k)) sc += 3; if (cats.includes(k)) sc += 2; if (desc.includes(k)) sc += 1; } if (kw.some(k=>/innov/.test(k)) && (org.InnovationFit||'').toLowerCase()==='strong') sc += 2; if (kw.some(k=>/roundtable|round.table/.test(k)) && org.RoundtableRecommended==='Yes') sc += 1.5; const norm = Math.min(1, sc / Math.max(1, kw.length * 3 + 3)); return { stars: norm>=0.65 ? 3 : norm>=0.45 ? 2 : 1, score: norm }; }
-    function matchToEvent() { const ev = document.getElementById('event-details').value.trim(); if (!ev) return; eventRelevancy = {}; for (const o of allOrgs) eventRelevancy[String(o.OrganizationId)] = computeRelevancy(ev, o); allOrgs.sort((a,b) => (eventRelevancy[String(b.OrganizationId)]?.score||0) - (eventRelevancy[String(a.OrganizationId)]?.score||0)); metaEl.textContent = allOrgs.length + ' organizations, sorted by event relevance'; renderOrgs(); }
-    function clearEventMatch() { document.getElementById('event-details').value = ''; eventRelevancy = {}; fetchOrgs(); }
+    let relevanceSortOrder = 'desc';
+    function matchToEvent() { const ev = document.getElementById('event-details').value.trim(); if (!ev) return; eventRelevancy = {}; for (const o of allOrgs) eventRelevancy[String(o.OrganizationId)] = computeRelevancy(ev, o); relevanceSortOrder = document.getElementById('relevance-sort')?.value || 'desc'; sortByRelevancy(); document.getElementById('relevance-sort-row').style.display = 'flex'; metaEl.textContent = allOrgs.length + ' organizations, sorted by event relevance'; renderOrgs(); }
+    function sortByRelevancy() { if (!Object.keys(eventRelevancy).length) return; const m = relevanceSortOrder === 'desc' ? -1 : 1; allOrgs.sort((a,b) => m * ((eventRelevancy[String(a.OrganizationId)]?.score||0) - (eventRelevancy[String(b.OrganizationId)]?.score||0))); }
+    function clearEventMatch() { document.getElementById('event-details').value = ''; eventRelevancy = {}; document.getElementById('relevance-sort-row').style.display = 'none'; fetchOrgs(); }
     function fetchFilters() { fetch(API + '/api/filters').then(r => r.json()).then(d => { d.innovation_fits.forEach(f => { const o = document.createElement('option'); o.value = f; o.textContent = f; innovationEl.appendChild(o); }); d.categories.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; categoryEl.appendChild(o); }); }); }
     function fetchOrgs() { const p = new URLSearchParams(); const s = searchEl.value.trim(), pos = getPositionParam(), inv = innovationEl.value.trim(), cat = categoryEl.value.trim(), cus = customEl.value.trim(); if (s) p.set('search', s); if (pos) p.set('position', pos); if (inv) p.set('innovation_fit', inv); if (cat) p.set('category', cat); if (cus) p.set('custom_filter', cus); resultsEl.innerHTML = '<div class="loading">Loading...</div>'; fetch(API + '/api/organizations?' + p).then(r => r.json()).then(d => { allOrgs = d.organizations; metaEl.textContent = d.total + ' organization' + (d.total !== 1 ? 's' : '') + ' found'; renderOrgs(); }).catch(() => { resultsEl.innerHTML = '<div class="error">Failed to load data.</div>'; }); }
     function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
@@ -159,6 +172,9 @@
     exportBtn.addEventListener('click', () => { if (selectedIds.size === 0) return; const pos = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value); const body = JSON.stringify({ orgIds: [...selectedIds], positions: pos.length === 0 || pos.length === 4 ? ['all'] : pos }); fetch(API + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).then(r => r.blob()).then(blob => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'org_contacts_export.csv'; a.click(); URL.revokeObjectURL(a.href); }); });
     document.getElementById('match-event-btn').addEventListener('click', matchToEvent);
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
+    document.getElementById('relevance-sort')?.addEventListener('change', e => { relevanceSortOrder = e.target.value; if (Object.keys(eventRelevancy).length) { sortByRelevancy(); renderOrgs(); } });
+    document.getElementById('tracking-info-btn')?.addEventListener('click', () => alert('Got response / Reached out: stored in this browser only. Does NOT sync across devices or coworkers. For shared tracking, a database (e.g. Supabase) would be needed.'));
+    document.getElementById('relevance-help-btn')?.addEventListener('click', () => alert('Relevance: keywords from your event text are matched against org name (+3), categories (+2), description (+1). Bonuses for innovation/roundtable matches. Score → 1-3 stars. Keyword-based, not AI—spot-check to validate.'));
     [searchEl, innovationEl, categoryEl, customEl].forEach(el => { if (el === searchEl || el === customEl) el.addEventListener('input', debounce(fetchOrgs, 300)); else el.addEventListener('change', fetchOrgs); });
     loadTracking(); fetchFilters(); fetchOrgs();
   </script>
