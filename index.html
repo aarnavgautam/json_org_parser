@@ -138,25 +138,6 @@
     }
     .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-top: 0.25rem; }
     .event-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-    .relevance-stars {
-      display: inline-flex;
-      gap: 2px;
-      margin-left: 0.5rem;
-      font-size: 0.9rem;
-      color: #e3b341;
-    }
-    .relevance-stars .star { opacity: 0.3; }
-    .relevance-stars .star.filled { opacity: 1; }
-    .relevance-badge {
-      font-size: 0.7rem;
-      padding: 0.2rem 0.4rem;
-      border-radius: 4px;
-      margin-left: 0.35rem;
-      background: var(--tag);
-      color: var(--text-muted);
-    }
-    .relevance-badge.high { background: #23863633; color: var(--success); }
-    .relevance-badge.med { background: var(--accent-dim); color: var(--accent); }
 
     .actions-bar {
       display: flex;
@@ -293,7 +274,7 @@
         <ol>
           <li><strong>Include these details in your event plan:</strong> event theme or goal, target audience, topics or industries, activities (networking, workshops, etc.), and—if relevant—innovation/entrepreneurship focus or roundtable/networking format.</li>
           <li><strong>Paste your event plan into ChatGPT or any AI</strong> and use this prompt:
-            <blockquote id="ai-prompt-quote">Expand the following event description into keyword-rich text for matching student organizations. Include: specific industries (e.g. design, tech, business, engineering, cultural, arts, pre-professional, service), activity types (networking, roundtable, workshop, innovation), and target audience. Output only the expanded text, no explanations. Use concrete terms that would appear in org names, categories, or descriptions.
+            <blockquote id="ai-prompt-quote">Expand the following event description into keyword-rich text for matching student organizations. Include: specific categories (design, tech, business, engineering, cultural, arts, pre-professional, service, sports), activity types (networking, roundtable, workshop, innovation), and topics. Output only the expanded text—no bullets or explanations. Use concrete terms that appear in org names, categories, or descriptions. At least 5–10 distinct keywords work best.
 
 [Paste your event plan here]</blockquote>
             <button type="button" class="btn btn-outline btn-sm" id="copy-prompt-btn">Copy prompt</button>
@@ -379,7 +360,8 @@
     let allOrgs = [];
     let selectedIds = new Set();
     let tracking = {};
-    let eventRelevancy = {}; // { orgId: { stars: 1-3, score: 0-1 } }
+    let eventRelevancy = {}; // { orgId: { score, rawScore, matchCount } }
+    let displayOrgs = null; // when set, only these orgs shown (event match mode)
 
     function debounce(fn, ms) {
       return () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(fn, ms); };
@@ -415,39 +397,48 @@
     }
 
     const STOPWORDS = new Set('the a an and or but in on at to for of with by from as is was are were be been being have has had do does did will would could should may might must can'.split(' '));
+    const MIN_KEYWORD_LEN = 3;
+    const MIN_MATCHES = 2;
+
     function extractKeywords(text) {
       if (!text || !text.trim()) return [];
-      return text.toLowerCase()
+      const words = text.toLowerCase()
         .replace(/[^a-z0-9\s]/g, ' ')
         .split(/\s+/)
-        .filter(w => w.length >= 3 && !STOPWORDS.has(w));
+        .filter(w => w.length >= MIN_KEYWORD_LEN && !STOPWORDS.has(w));
+      return [...new Set(words)];
     }
 
     function computeRelevancy(eventText, org) {
       const keywords = extractKeywords(eventText);
-      if (!keywords.length) return { stars: 0, score: 0 };
+      if (!keywords.length) return { score: 0, rawScore: 0, matchCount: 0 };
 
       const name = (org.OrganizationName || '').toLowerCase();
       const desc = (org.OrganizationDescription || '').toLowerCase();
       const cats = (org.Categories || []).join(' ').toLowerCase();
+      const allText = [name, desc, cats].join(' ');
 
-      let score = 0;
+      let rawScore = 0;
+      let matchCount = 0;
       for (const kw of keywords) {
-        if (name.includes(kw)) score += 3;
-        if (cats.includes(kw)) score += 2;
-        if (desc.includes(kw)) score += 1;
+        let matched = false;
+        if (name.includes(kw)) { rawScore += 3; matched = true; }
+        if (cats.includes(kw)) { rawScore += 2; matched = true; }
+        if (desc.includes(kw)) { rawScore += 1; matched = true; }
+        if (matched) matchCount++;
       }
-      if (keywords.some(k => /innov/.test(k)) && (org.InnovationFit || '').toLowerCase() === 'strong') score += 2;
-      if (keywords.some(k => /roundtable|round.table/.test(k)) && org.RoundtableRecommended === 'Yes') score += 1.5;
+      if (keywords.some(k => /innov/.test(k)) && (org.InnovationFit || '').toLowerCase() === 'strong') {
+        rawScore += 2;
+        matchCount++;
+      }
+      if (keywords.some(k => /roundtable|round.table/.test(k)) && org.RoundtableRecommended === 'Yes') {
+        rawScore += 1.5;
+        matchCount++;
+      }
 
-      const maxPossible = Math.max(1, keywords.length * 3 + 3);
-      const normalized = Math.min(1, score / maxPossible);
-
-      let stars = 1;
-      if (normalized >= 0.45) stars = 2;
-      if (normalized >= 0.65) stars = 3;
-
-      return { stars, score: normalized };
+      const maxPossible = Math.max(1, keywords.length * 3 + 4);
+      const score = Math.min(1, rawScore / maxPossible);
+      return { score, rawScore, matchCount };
     }
 
     let relevanceSortOrder = 'desc';
@@ -460,22 +451,33 @@
         const oid = String(org.OrganizationId);
         eventRelevancy[oid] = computeRelevancy(eventText, org);
       }
-      relevanceSortOrder = document.getElementById('relevance-sort')?.value || 'desc';
-      sortByRelevancy();
-      document.getElementById('relevance-sort-row').style.display = 'flex';
-      metaEl.textContent = `${allOrgs.length} organizations, sorted by event relevance`;
+      const matched = allOrgs.filter(org => {
+        const r = eventRelevancy[String(org.OrganizationId)];
+        return r && r.matchCount >= MIN_MATCHES;
+      });
+      const mult = (document.getElementById('relevance-sort')?.value || 'desc') === 'desc' ? -1 : 1;
+      matched.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.score || 0) - (eventRelevancy[String(b.OrganizationId)]?.score || 0)));
+      displayOrgs = matched;
+      document.getElementById('relevance-sort-row').style.display = matched.length ? 'flex' : 'none';
+      metaEl.textContent = matched.length
+        ? `${matched.length} organization${matched.length !== 1 ? 's' : ''} match your event`
+        : 'No organizations match your event. Try adding more specific terms (industries, topics, activity types) from your AI output.';
       renderOrgs();
     }
 
     function sortByRelevancy() {
-      if (!Object.keys(eventRelevancy).length) return;
+      if (!displayOrgs || !displayOrgs.length) return;
+      relevanceSortOrder = document.getElementById('relevance-sort')?.value || 'desc';
       const mult = relevanceSortOrder === 'desc' ? -1 : 1;
-      allOrgs.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.score || 0) - (eventRelevancy[String(b.OrganizationId)]?.score || 0)));
+      displayOrgs.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.score || 0) - (eventRelevancy[String(b.OrganizationId)]?.score || 0)));
+      renderOrgs();
     }
 
     function clearEventMatch() {
       document.getElementById('event-details').value = '';
       eventRelevancy = {};
+      displayOrgs = null;
+      document.getElementById('relevance-sort-row').style.display = 'none';
       document.getElementById('relevance-sort-row').style.display = 'none';
       fetchOrgs();
     }
@@ -510,6 +512,8 @@
         .then(r => r.json())
         .then(data => {
           allOrgs = data.organizations;
+          displayOrgs = null;
+          eventRelevancy = {};
           metaEl.textContent = `${data.total} organization${data.total !== 1 ? 's' : ''} found`;
           renderOrgs();
         })
@@ -517,12 +521,15 @@
     }
 
     function renderOrgs() {
-      if (!allOrgs.length) {
-        resultsEl.innerHTML = '<div class="loading">No organizations match your filters.</div>';
+      const orgsToShow = displayOrgs || allOrgs;
+      if (!orgsToShow.length) {
+        resultsEl.innerHTML = displayOrgs !== null
+          ? '<div class="loading">No organizations match your event. Try adding more specific terms (industries, topics, activity types) from your AI output.</div>'
+          : '<div class="loading">No organizations match your filters.</div>';
         updateExportState();
         return;
       }
-      resultsEl.innerHTML = allOrgs.map(org => {
+      resultsEl.innerHTML = orgsToShow.map(org => {
         const oid = String(org.OrganizationId);
         const t = tracking[oid] || { gotResponse: false, outreachCount: 0, unsubscribed: false };
         const tags = [...(org.Categories || [])];
@@ -530,12 +537,12 @@
         const officers = (org.Officers || []).filter(o => o.Email);
         const checked = selectedIds.has(oid) ? 'checked' : '';
         const rel = eventRelevancy[oid];
-        const starsHtml = rel ? `<span class="relevance-stars" title="Relevance: ${rel.stars}/3"><span class="star ${rel.stars>=1?'filled':''}">★</span><span class="star ${rel.stars>=2?'filled':''}">★</span><span class="star ${rel.stars>=3?'filled':''}">★</span></span><span class="relevance-badge ${rel.stars>=2?'high':rel.stars>=1?'med':''}">${rel.stars===3?'High':rel.stars===2?'Medium':'Low'} match</span>` : '';
+        const relevanceHtml = rel && displayOrgs ? '' : '';
         return `
           <article class="org-card ${checked ? 'selected' : ''}" data-org-id="${escapeHtml(oid)}">
             <input type="checkbox" class="org-checkbox" ${checked} data-org-id="${escapeHtml(oid)}" aria-label="Select">
             <div class="org-main">
-              <div class="org-name">${escapeHtml(org.OrganizationName)}${starsHtml}</div>
+              <div class="org-name">${escapeHtml(org.OrganizationName)}${relevanceHtml}</div>
               ${org.OrganizationDescription ? `<div class="org-desc">${escapeHtml(org.OrganizationDescription)}</div>` : ''}
               <div class="org-tags">
                 ${tags.map(tag => `<span class="tag ${tag.includes('Strong') ? 'innovation-strong' : ''}">${escapeHtml(tag)}</span>`).join('')}
@@ -651,7 +658,7 @@
     });
 
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
-      alert(`How relevance scoring works:\n\n• Keywords are extracted from your event text (words 3+ chars, excluding common words like "the", "and").\n• Each org is scored by keyword matches:\n  - In org name: +3 pts each\n  - In categories (Design, Tech, etc.): +2 pts each\n  - In description: +1 pt each\n• Bonus: +2 if event mentions "innovation" and org has Strong innovation fit\n• Bonus: +1.5 if event mentions "roundtable" and org is roundtable recommended\n• Score is normalized to 0-1, then mapped to 1-3 stars (0.65+ = 3★, 0.45+ = 2★, else 1★)\n\nAccuracy: This is keyword-based, not AI. It works best when event text uses concrete terms (design, tech, entrepreneur, etc.). Spot-check high vs low relevance orgs to validate.`);
+      alert(`How relevance matching works:\n\n• Keywords are extracted from your AI output (words 3+ chars, duplicates removed).\n• An org is shown only if at least 2 keywords match somewhere in its name, categories, or description.\n• Scoring for sorting: name match +3, category +2, description +1. Bonuses for innovation/roundtable.\n• Use concrete terms in your AI prompt: industries (design, tech, business), topics, activity types (networking, workshop).`);
     });
 
     [searchEl, innovationEl, categoryEl, customEl].forEach(el => {
