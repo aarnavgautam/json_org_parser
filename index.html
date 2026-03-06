@@ -65,10 +65,47 @@
       outline: none;
       border-color: var(--accent);
     }
-    .toolbar select[multiple] {
-      min-height: 5.4rem;
-      padding: 0.35rem 0.5rem;
+    .multi-dropdown {
+      position: relative;
+      min-width: 180px;
     }
+    .multi-dropdown > summary {
+      list-style: none;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .multi-dropdown > summary::-webkit-details-marker { display: none; }
+    .multi-dropdown[open] > summary { border-color: var(--accent); }
+    .multi-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      left: 0;
+      min-width: 220px;
+      max-height: 220px;
+      overflow: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      z-index: 30;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .multi-dropdown-menu label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.2rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .multi-dropdown-menu input { accent-color: var(--accent); }
 
     .positions-panel {
       background: var(--surface);
@@ -148,7 +185,22 @@
       border-bottom: 1px solid var(--border);
       padding: 0.75rem 1.5rem;
     }
-    .verify-panel summary { cursor: pointer; color: var(--text-muted); }
+    .verify-panel summary { cursor: pointer; color: var(--text-muted); font-size: 0.9rem; user-select: none; }
+    .verify-panel details[open] summary { margin-bottom: 0.75rem; }
+    .verify-panel textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+    }
+    .verify-panel textarea:focus { outline: none; border-color: var(--accent); }
+    .verify-panel textarea::placeholder { color: var(--text-muted); opacity: 0.7; }
 
     .actions-bar {
       display: flex;
@@ -316,8 +368,14 @@
     <div class="search">
       <input type="text" id="search" placeholder="Search org name, description, or contact name/email..." style="width:100%">
     </div>
-    <select id="innovation_fit" multiple size="3" title="Innovation strength (multi-select)"></select>
-    <select id="category" multiple size="4" title="Category (multi-select)"></select>
+    <details class="multi-dropdown" id="innovation_dropdown">
+      <summary id="innovation_summary">Innovation: Any</summary>
+      <div class="multi-dropdown-menu" id="innovation_menu"></div>
+    </details>
+    <details class="multi-dropdown" id="category_dropdown">
+      <summary id="category_summary">Category: Any</summary>
+      <div class="multi-dropdown-menu" id="category_menu"></div>
+    </details>
     <input type="text" id="custom" placeholder="Custom keywords..." style="width:160px">
     <button type="button" class="btn btn-outline" id="clear-filters-btn" title="Clear all filters">Clear all</button>
   </div>
@@ -389,8 +447,8 @@
     const STORAGE_KEY = 'uf-orgs-tracking';
 
     const searchEl = document.getElementById('search');
-    const innovationEl = document.getElementById('innovation_fit');
-    const categoryEl = document.getElementById('category');
+    const innovationMenuEl = document.getElementById('innovation_menu');
+    const categoryMenuEl = document.getElementById('category_menu');
     const customEl = document.getElementById('custom');
     const posPresident = document.getElementById('pos-president');
     const posVp = document.getElementById('pos-vp');
@@ -448,18 +506,18 @@
       return checked.length === 0 || checked.length === 4 ? '' : checked.join(',');
     }
 
-    function getMultiSelectParam(selectEl) {
-      const values = [...selectEl.selectedOptions].map(o => o.value).filter(Boolean);
+    function getCheckedValues(menuEl) {
+      return [...menuEl.querySelectorAll('input[type="checkbox"]:checked')].map(i => i.value);
+    }
+
+    function getMultiSelectParam(menuEl) {
+      const values = getCheckedValues(menuEl);
       return values.length ? values.join(',') : '';
     }
 
-    function enableClickMultiSelect(selectEl) {
-      selectEl.addEventListener('mousedown', (e) => {
-        if (e.target.tagName !== 'OPTION') return;
-        e.preventDefault();
-        e.target.selected = !e.target.selected;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-      });
+    function updateMultiSummary(summaryId, label, values) {
+      const summary = document.getElementById(summaryId);
+      summary.textContent = values.length ? `${label}: ${values.length} selected` : `${label}: Any`;
     }
 
     function getCurrentBaseOrgs() {
@@ -547,13 +605,32 @@
 
     function fetchFilters() {
       fetch(`${API}/api/filters`).then(r => r.json()).then(data => {
-        innovationEl.innerHTML = '';
-        categoryEl.innerHTML = '';
+        innovationMenuEl.innerHTML = '';
+        categoryMenuEl.innerHTML = '';
         data.innovation_fits.forEach(fit => {
-          const o = document.createElement('option'); o.value = fit; o.textContent = fit; innovationEl.appendChild(o);
+          const id = `innovation-opt-${fit.replace(/[^a-z0-9]/gi, '-')}`;
+          const row = document.createElement('label');
+          row.innerHTML = `<input type="checkbox" id="${id}" value="${escapeHtml(fit)}"> <span>${escapeHtml(fit)}</span>`;
+          innovationMenuEl.appendChild(row);
         });
         data.categories.forEach(cat => {
-          const o = document.createElement('option'); o.value = cat; o.textContent = cat; categoryEl.appendChild(o);
+          const id = `category-opt-${cat.replace(/[^a-z0-9]/gi, '-')}`;
+          const row = document.createElement('label');
+          row.innerHTML = `<input type="checkbox" id="${id}" value="${escapeHtml(cat)}"> <span>${escapeHtml(cat)}</span>`;
+          categoryMenuEl.appendChild(row);
+        });
+
+        innovationMenuEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.addEventListener('change', () => {
+            updateMultiSummary('innovation_summary', 'Innovation', getCheckedValues(innovationMenuEl));
+            fetchOrgs();
+          });
+        });
+        categoryMenuEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.addEventListener('change', () => {
+            updateMultiSummary('category_summary', 'Category', getCheckedValues(categoryMenuEl));
+            fetchOrgs();
+          });
         });
       });
     }
@@ -562,8 +639,8 @@
       const params = new URLSearchParams();
       const search = searchEl.value.trim();
       const position = getPositionParam();
-      const innovation = getMultiSelectParam(innovationEl);
-      const category = getMultiSelectParam(categoryEl);
+      const innovation = getMultiSelectParam(innovationMenuEl);
+      const category = getMultiSelectParam(categoryMenuEl);
       const custom = customEl.value.trim();
       if (search) params.set('search', search);
       if (position) params.set('position', position);
@@ -703,8 +780,8 @@
       const positions = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value);
       const wantAllPositions = positions.length === 0 || positions.length === 4;
       const positionTypes = new Set(positions.map(p => p.toLowerCase()));
-      const innovation = getMultiSelectParam(innovationEl) || 'Any';
-      const category = getMultiSelectParam(categoryEl) || 'Any';
+      const innovation = getMultiSelectParam(innovationMenuEl) || 'Any';
+      const category = getMultiSelectParam(categoryMenuEl) || 'Any';
       const search = searchEl.value.trim() || '(none)';
       const custom = customEl.value.trim() || '(none)';
 
@@ -801,8 +878,10 @@
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
     document.getElementById('clear-filters-btn').addEventListener('click', () => {
       searchEl.value = '';
-      [...innovationEl.options].forEach(o => { o.selected = false; });
-      [...categoryEl.options].forEach(o => { o.selected = false; });
+      innovationMenuEl.querySelectorAll('input[type="checkbox"]').forEach(i => { i.checked = false; });
+      categoryMenuEl.querySelectorAll('input[type="checkbox"]').forEach(i => { i.checked = false; });
+      updateMultiSummary('innovation_summary', 'Innovation', []);
+      updateMultiSummary('category_summary', 'Category', []);
       customEl.value = '';
       [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = true);
       document.getElementById('event-details').value = '';
@@ -871,13 +950,18 @@
       alert(`How relevance matching works:\n\n• All orgs are ranked by relevance score and paginated by your per-page setting.\n• Scoring: name match +3, category +2, description +1. Bonuses for innovation/roundtable.\n• Use specific terms in your AI output (robotics, startups, prototyping) rather than broad ones (design, business, service) for better differentiation.`);
     });
 
-    [searchEl, innovationEl, categoryEl, customEl].forEach(el => {
+    [searchEl, customEl].forEach(el => {
       if (el === searchEl || el === customEl) el.addEventListener('input', debounce(fetchOrgs, 300));
       else el.addEventListener('change', fetchOrgs);
     });
 
-    enableClickMultiSelect(innovationEl);
-    enableClickMultiSelect(categoryEl);
+    document.addEventListener('click', (e) => {
+      const iDrop = document.getElementById('innovation_dropdown');
+      const cDrop = document.getElementById('category_dropdown');
+      if (!iDrop.contains(e.target)) iDrop.removeAttribute('open');
+      if (!cDrop.contains(e.target)) cDrop.removeAttribute('open');
+    });
+
     loadTracking();
     fetchFilters();
     fetchOrgs();
