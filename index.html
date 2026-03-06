@@ -33,6 +33,15 @@
     }
     .header h1 { font-size: 1.25rem; font-weight: 600; }
     .header p { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    .tracking-banner {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .tracking-banner a { color: var(--accent); text-decoration: none; }
+    .tracking-banner a:hover { text-decoration: underline; }
 
     .toolbar {
       display: flex;
@@ -207,7 +216,6 @@
       border-radius: 4px;
     }
     .tag.innovation-strong { background: #23863633; color: var(--success); }
-    .tag.roundtable { background: var(--accent-dim); color: var(--accent); }
     .org-tracking {
       display: flex;
       align-items: center;
@@ -261,6 +269,8 @@
     <h1>UF Organizations Directory</h1>
     <p>Search, filter, select orgs, export contacts, track outreach <button type="button" class="btn-link" id="tracking-info-btn" title="About tracking">ℹ️</button></p>
   </header>
+
+  <div id="tracking-banner" class="tracking-banner" style="display:none;"></div>
 
   <div class="event-panel">
     <details>
@@ -354,7 +364,15 @@
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
           const src = data && data._source;
-          tracking = (src && data) ? (() => { const { _source, ...rest } = data; return rest; })() : (data || {});
+          const sheetLink = data && data._sheetLink;
+          tracking = (src && data) ? (() => { const { _source, _sheetLink, ...rest } = data; return rest; })() : (data || {});
+          const banner = document.getElementById('tracking-banner');
+          if (sheetLink) {
+            banner.style.display = 'block';
+            banner.innerHTML = 'Tracking from <a href="' + escapeHtml(sheetLink) + '" target="_blank" rel="noopener">Google Sheet</a>. Updates may take up to 30 seconds to appear.';
+          } else {
+            banner.style.display = 'none';
+          }
           if (allOrgs.length) renderOrgs();
         })
         .catch(() => {
@@ -483,7 +501,6 @@
         const t = tracking[oid] || { gotResponse: false, outreachCount: 0 };
         const tags = [...(org.Categories || [])];
         if (org.InnovationFit) tags.push(`Innovation: ${org.InnovationFit}`);
-        if (org.RoundtableRecommended === 'Yes') tags.push('Roundtable ✓');
         const officers = (org.Officers || []).filter(o => o.Email);
         const checked = selectedIds.has(oid) ? 'checked' : '';
         const rel = eventRelevancy[oid];
@@ -495,10 +512,10 @@
               <div class="org-name">${escapeHtml(org.OrganizationName)}${starsHtml}</div>
               ${org.OrganizationDescription ? `<div class="org-desc">${escapeHtml(org.OrganizationDescription)}</div>` : ''}
               <div class="org-tags">
-                ${tags.map(tag => `<span class="tag ${tag.includes('Strong') ? 'innovation-strong' : ''} ${tag.includes('Roundtable') ? 'roundtable' : ''}">${escapeHtml(tag)}</span>`).join('')}
+                ${tags.map(tag => `<span class="tag ${tag.includes('Strong') ? 'innovation-strong' : ''}">${escapeHtml(tag)}</span>`).join('')}
               </div>
               <div class="org-tracking">
-                <span class="response-display ${t.gotResponse ? 'has-response' : ''}">${t.gotResponse ? '✓ Got response' : '—'}</span>
+                <span class="response-display ${t.gotResponse ? 'has-response' : ''}">${t.gotResponse ? '✓ Got response' : 'No response yet'}</span>
                 <span class="outreach-display">Reached out: ${t.outreachCount}</span>
               </div>
               <div class="contacts">
