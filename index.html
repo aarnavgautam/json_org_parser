@@ -125,6 +125,18 @@
     }
     .event-panel textarea:focus { outline: none; border-color: var(--accent); }
     .event-panel textarea::placeholder { color: var(--text-muted); opacity: 0.7; }
+    .event-instructions { margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
+    .event-instructions ol { margin: 0.5rem 0 0 1.25rem; padding: 0; }
+    .event-instructions li { margin-bottom: 0.75rem; }
+    .event-instructions blockquote {
+      background: var(--bg);
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 0.75rem;
+      margin: 0.5rem 0;
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+    .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-top: 0.25rem; }
     .event-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
     .relevance-stars {
       display: inline-flex;
@@ -274,8 +286,21 @@
 
   <div class="event-panel">
     <details>
-      <summary>Paste event details to find relevant organizations</summary>
-      <textarea id="event-details" placeholder="Paste your event description here... e.g. Innovation roundtable for design and tech clubs, networking for entrepreneurs..." rows="4"></textarea>
+      <summary>Find relevant organizations by event</summary>
+      <div class="event-instructions">
+        <p><strong>How it works:</strong> Use your own AI (ChatGPT, Claude, etc.) to optimize your event description. Then paste the result here. Our keyword-based matcher will rank orgs by relevance—no AI runs on our side.</p>
+        <ol>
+          <li><strong>Include these details in your event plan:</strong> event theme or goal, target audience, topics or industries, activities (networking, workshops, etc.), and—if relevant—innovation/entrepreneurship focus or roundtable/networking format.</li>
+          <li><strong>Paste your event plan into ChatGPT or any AI</strong> and use this prompt:
+            <blockquote id="ai-prompt-quote">Expand the following event description into keyword-rich text for matching student organizations. Include: specific industries (e.g. design, tech, business, engineering, cultural, arts, pre-professional, service), activity types (networking, roundtable, workshop, innovation), and target audience. Output only the expanded text, no explanations. Use concrete terms that would appear in org names, categories, or descriptions.
+
+[Paste your event plan here]</blockquote>
+            <button type="button" class="btn btn-outline btn-sm" id="copy-prompt-btn">Copy prompt</button>
+          </li>
+          <li><strong>Paste the AI output into the textbox below</strong> and click &quot;Find relevant orgs.&quot;</li>
+        </ol>
+      </div>
+      <textarea id="event-details" placeholder="Paste your AI-expanded event description here..." rows="4"></textarea>
       <div class="event-actions">
         <button type="button" class="btn" id="match-event-btn">Find relevant orgs</button>
         <button type="button" class="btn btn-outline" id="clear-event-btn">Clear & show all</button>
@@ -600,6 +625,16 @@
 
     document.getElementById('match-event-btn').addEventListener('click', matchToEvent);
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
+    document.getElementById('copy-prompt-btn').addEventListener('click', () => {
+      const q = document.getElementById('ai-prompt-quote');
+      const text = q ? q.textContent.trim() : '';
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-prompt-btn');
+        const old = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = old; }, 1500);
+      }).catch(() => {});
+    });
 
     document.getElementById('relevance-sort')?.addEventListener('change', (e) => {
       relevanceSortOrder = e.target.value;
