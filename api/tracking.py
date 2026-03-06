@@ -145,14 +145,18 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         out = dict(data)
         out["_source"] = "google-sheet"
-        url = os.environ.get("GOOGLE_SHEET_TRACKING_URL", "").strip()
-        if url:
-            base = url.split("?")[0].rstrip("/")
-            if "/pub" in base:
-                base = base.split("/pub")[0]
-            elif "/export" in base:
-                base = base.split("/export")[0]
-            out["_sheetLink"] = base + "/edit"
+        edit_link = os.environ.get("GOOGLE_SHEET_EDIT_LINK", "").strip()
+        if edit_link:
+            out["_sheetLink"] = edit_link
+        else:
+            url = os.environ.get("GOOGLE_SHEET_TRACKING_URL", "").strip()
+            if url:
+                base = url.split("?")[0].rstrip("/")
+                if "/pub" in base:
+                    base = base.split("/pub")[0]
+                elif "/export" in base:
+                    base = base.split("/export")[0]
+                out["_sheetLink"] = base + "/edit"
         self.wfile.write(json.dumps(out).encode("utf-8"))
 
     def do_OPTIONS(self):

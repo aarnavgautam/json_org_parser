@@ -19,9 +19,10 @@ Searchable directory of 1,000+ UF student organizations. Filter, select, export 
    - **OutreachCount** = number of times you reached out
    - Tip: Add an extra **OrganizationName** column for your reference; the app uses OrganizationId only for matching.
 2. **File → Share → Publish to web** → choose **Comma-separated values (.csv)** → Publish
-3. Copy the CSV URL (e.g. `https://docs.google.com/spreadsheets/d/xxx/export?format=csv&gid=0`)
+3. Copy the CSV URL (e.g. `https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv&gid=0`)
 4. In Vercel: **Settings → Environment Variables** → add:
    - `GOOGLE_SHEET_TRACKING_URL` = your published CSV URL
+   - `GOOGLE_SHEET_EDIT_LINK` = (optional) banner link only—use when you want the banner to open a specific sheet URL. Does not affect data fetching (that uses `GOOGLE_SHEET_TRACKING_URL`). Example: `https://docs.google.com/spreadsheets/d/SHEET_ID/edit?usp=sharing`
 5. Redeploy
 
 The app reads from the sheet every 30 seconds. Edit the sheet manually; changes appear on the page automatically. Works in incognito and for all users.
