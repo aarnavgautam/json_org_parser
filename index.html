@@ -257,7 +257,7 @@
   </script>
   <header class="header">
     <h1>UF Organizations Directory</h1>
-    <p>Search, filter, select orgs, export contacts, track outreach <button type="button" class="btn-link" id="tracking-info-btn" title="About tracking">ℹ️</button></p>
+    <p>Search, filter, select orgs, export contacts, track outreach. All filters combine (search + innovation + category + position + custom). <button type="button" class="btn-link" id="tracking-info-btn" title="About tracking">ℹ️</button></p>
   </header>
 
   <div id="tracking-banner" class="tracking-banner" style="display:none;"></div>
@@ -293,6 +293,7 @@
     <select id="innovation_fit"><option value="">Innovation: Any</option></select>
     <select id="category"><option value="">Category: Any</option></select>
     <input type="text" id="custom" placeholder="Custom keywords..." style="width:160px">
+    <button type="button" class="btn btn-outline" id="clear-filters-btn" title="Clear all filters">Clear all</button>
   </div>
 
   <div class="positions-panel">
@@ -630,6 +631,18 @@
 
     document.getElementById('match-event-btn').addEventListener('click', matchToEvent);
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
+    document.getElementById('clear-filters-btn').addEventListener('click', () => {
+      searchEl.value = '';
+      innovationEl.value = '';
+      categoryEl.value = '';
+      customEl.value = '';
+      [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = true);
+      document.getElementById('event-details').value = '';
+      eventRelevancy = {};
+      displayOrgs = null;
+      document.getElementById('relevance-sort-row').style.display = 'none';
+      fetchOrgs();
+    });
     document.getElementById('copy-prompt-btn').addEventListener('click', () => {
       const q = document.getElementById('ai-prompt-quote');
       const text = q ? q.textContent.trim() : '';

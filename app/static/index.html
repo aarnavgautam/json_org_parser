@@ -97,6 +97,7 @@
     <select id="innovation_fit"><option value="">Innovation: Any</option></select>
     <select id="category"><option value="">Category: Any</option></select>
     <input type="text" id="custom" placeholder="Custom keywords..." style="width:160px">
+    <button type="button" class="btn btn-outline" id="clear-filters-btn" title="Clear all filters">Clear all</button>
   </div>
   <div class="positions-panel">
     <h3>Include positions in results & export</h3>
@@ -173,6 +174,7 @@
     exportBtn.addEventListener('click', () => { if (selectedIds.size === 0) return; const pos = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value); const body = JSON.stringify({ orgIds: [...selectedIds], positions: pos.length === 0 || pos.length === 4 ? ['all'] : pos }); fetch(API + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).then(r => r.blob()).then(blob => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'org_contacts_export.csv'; a.click(); URL.revokeObjectURL(a.href); }); });
     document.getElementById('match-event-btn').addEventListener('click', matchToEvent);
     document.getElementById('clear-event-btn').addEventListener('click', clearEventMatch);
+    document.getElementById('clear-filters-btn').addEventListener('click', () => { searchEl.value = ''; innovationEl.value = ''; categoryEl.value = ''; customEl.value = ''; [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = true); document.getElementById('event-details').value = ''; eventRelevancy = {}; document.getElementById('relevance-sort-row').style.display = 'none'; fetchOrgs(); });
     document.getElementById('relevance-sort')?.addEventListener('change', e => { relevanceSortOrder = e.target.value; if (Object.keys(eventRelevancy).length) { sortByRelevancy(); renderOrgs(); } });
     document.getElementById('tracking-info-btn')?.addEventListener('click', () => alert('Tracking: Google Sheet—set GOOGLE_SHEET_TRACKING_URL in Vercel. Edit the sheet manually; refreshes every 30s. Vercel KV—syncs when configured. Otherwise browser only.'));
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => alert('Relevance: keywords from your event text are matched against org name (+3), categories (+2), description (+1). Bonuses for innovation/roundtable matches. Score → 1-3 stars. Keyword-based, not AI—spot-check to validate.'));
