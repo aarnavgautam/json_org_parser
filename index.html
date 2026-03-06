@@ -170,8 +170,8 @@
 
     .content { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
     .results-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
-    .relevance-sort-row { display: flex; align-items: center; gap: 0.5rem; }
-    .relevance-sort-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+    .relevance-sort-row, .results-limit-row { display: flex; align-items: center; gap: 0.5rem; }
+    .relevance-sort-row select, .results-limit-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
     .btn-link { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; padding: 0 0.25rem; }
     .btn-link:hover { color: var(--accent); }
 
@@ -270,7 +270,7 @@
         <ol>
           <li><strong>Include these details in your event plan:</strong> event theme or goal, target audience, topics or industries, activities (networking, workshops, etc.), and—if relevant—innovation/entrepreneurship focus or roundtable/networking format.</li>
           <li><strong>Paste your event plan into ChatGPT or any AI</strong> and use this prompt:
-            <blockquote id="ai-prompt-quote">Expand the following event description into keyword-rich text for matching student organizations. Include: specific categories (design, tech, business, engineering, cultural, arts, pre-professional, service, sports), activity types (networking, roundtable, workshop, innovation), and topics. Output only the expanded text—no bullets or explanations. Use concrete terms that appear in org names, categories, or descriptions. At least 5–10 distinct keywords work best.
+            <blockquote id="ai-prompt-quote">Expand this event into keyword-rich text for matching student organizations. Use 8–15 specific terms. Prefer specific terms (robotics, startups, prototyping, entrepreneurship, hardware, software, research labs) over broad ones (design, business, service, tech). Include: event themes, target disciplines, activity types. Output only the expanded text—no bullets or explanations. Terms should appear in org names, categories, or descriptions. Avoid generic words; specificity improves match quality.
 
 [Paste your event plan here]</blockquote>
             <button type="button" class="btn btn-outline btn-sm" id="copy-prompt-btn">Copy prompt</button>
@@ -321,12 +321,29 @@
     <div class="results-meta-row">
       <span id="meta"></span>
       <span id="relevance-sort-row" class="relevance-sort-row" style="display:none">
-        <label>Sort by relevance:</label>
+        <label>Show top:</label>
+        <select id="show-top-n">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="9999">All</option>
+        </select>
+        <label>Sort:</label>
         <select id="relevance-sort">
           <option value="desc">High → Low</option>
           <option value="asc">Low → High</option>
         </select>
         <button type="button" class="btn-link" id="relevance-help-btn" title="How relevance works">?</button>
+      </span>
+      <span id="results-limit-row" class="results-limit-row">
+        <label>Show per page:</label>
+        <select id="show-per-page">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="9999">All</option>
+        </select>
       </span>
     </div>
     <div id="results"></div>
@@ -395,7 +412,7 @@
 
     const STOPWORDS = new Set('the a an and or but in on at to for of with by from as is was are were be been being have has had do does did will would could should may might must can'.split(' '));
     const MIN_KEYWORD_LEN = 3;
-    const MIN_MATCHES = 2;
+    const DEFAULT_TOP_N = 50;
 
     function extractKeywords(text) {
       if (!text || !text.trim()) return [];
@@ -448,17 +465,13 @@
         const oid = String(org.OrganizationId);
         eventRelevancy[oid] = computeRelevancy(eventText, org);
       }
-      const matched = allOrgs.filter(org => {
-        const r = eventRelevancy[String(org.OrganizationId)];
-        return r && r.matchCount >= MIN_MATCHES;
-      });
       const mult = (document.getElementById('relevance-sort')?.value || 'desc') === 'desc' ? -1 : 1;
-      matched.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.score || 0) - (eventRelevancy[String(b.OrganizationId)]?.score || 0)));
-      displayOrgs = matched;
-      document.getElementById('relevance-sort-row').style.display = matched.length ? 'flex' : 'none';
-      metaEl.textContent = matched.length
-        ? `${matched.length} organization${matched.length !== 1 ? 's' : ''} match your event`
-        : 'No organizations match your event. Try adding more specific terms (industries, topics, activity types) from your AI output.';
+      const sorted = [...allOrgs].sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.rawScore || 0) - (eventRelevancy[String(b.OrganizationId)]?.rawScore || 0)));
+      const topN = parseInt(document.getElementById('show-top-n')?.value || String(DEFAULT_TOP_N), 10) || 9999;
+      displayOrgs = topN < 9999 ? sorted.slice(0, topN) : sorted;
+      document.getElementById('relevance-sort-row').style.display = 'flex';
+      document.getElementById('results-limit-row').style.display = 'none';
+      metaEl.textContent = `Showing top ${displayOrgs.length} of ${allOrgs.length} (ranked by relevance)`;
       renderOrgs();
     }
 
@@ -466,7 +479,7 @@
       if (!displayOrgs || !displayOrgs.length) return;
       relevanceSortOrder = document.getElementById('relevance-sort')?.value || 'desc';
       const mult = relevanceSortOrder === 'desc' ? -1 : 1;
-      displayOrgs.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.score || 0) - (eventRelevancy[String(b.OrganizationId)]?.score || 0)));
+      displayOrgs.sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.rawScore || 0) - (eventRelevancy[String(b.OrganizationId)]?.rawScore || 0)));
       renderOrgs();
     }
 
@@ -475,7 +488,7 @@
       eventRelevancy = {};
       displayOrgs = null;
       document.getElementById('relevance-sort-row').style.display = 'none';
-      document.getElementById('relevance-sort-row').style.display = 'none';
+      document.getElementById('results-limit-row').style.display = 'flex';
       fetchOrgs();
     }
 
@@ -511,14 +524,21 @@
           allOrgs = data.organizations;
           displayOrgs = null;
           eventRelevancy = {};
-          metaEl.textContent = `${data.total} organization${data.total !== 1 ? 's' : ''} found`;
+          document.getElementById('results-limit-row').style.display = 'flex';
           renderOrgs();
         })
         .catch(() => { resultsEl.innerHTML = '<div class="error">Failed to load data.</div>'; });
     }
 
     function renderOrgs() {
-      const orgsToShow = displayOrgs || allOrgs;
+      let orgsToShow = displayOrgs || allOrgs;
+      const perPage = parseInt(document.getElementById('show-per-page')?.value || '9999', 10) || 9999;
+      if (!displayOrgs && perPage < 9999) {
+        orgsToShow = orgsToShow.slice(0, perPage);
+        metaEl.textContent = `Showing 1–${orgsToShow.length} of ${allOrgs.length} organization${allOrgs.length !== 1 ? 's' : ''}`;
+      } else if (!displayOrgs) {
+        metaEl.textContent = `${allOrgs.length} organization${allOrgs.length !== 1 ? 's' : ''} found`;
+      }
       if (!orgsToShow.length) {
         resultsEl.innerHTML = displayOrgs !== null
           ? '<div class="loading">No organizations match your event. Try adding more specific terms (industries, topics, activity types) from your AI output.</div>'
@@ -641,6 +661,7 @@
       eventRelevancy = {};
       displayOrgs = null;
       document.getElementById('relevance-sort-row').style.display = 'none';
+      document.getElementById('results-limit-row').style.display = 'flex';
       fetchOrgs();
     });
     document.getElementById('copy-prompt-btn').addEventListener('click', () => {
@@ -654,20 +675,27 @@
       }).catch(() => {});
     });
 
-    document.getElementById('relevance-sort')?.addEventListener('change', (e) => {
-      relevanceSortOrder = e.target.value;
-      if (Object.keys(eventRelevancy).length) {
-        sortByRelevancy();
+    document.getElementById('relevance-sort')?.addEventListener('change', () => {
+      if (displayOrgs) { sortByRelevancy(); renderOrgs(); }
+    });
+    document.getElementById('show-top-n')?.addEventListener('change', () => {
+      if (displayOrgs && Object.keys(eventRelevancy).length) {
+        const topN = parseInt(document.getElementById('show-top-n').value, 10) || 9999;
+        const mult = (document.getElementById('relevance-sort')?.value || 'desc') === 'desc' ? -1 : 1;
+        const sorted = [...allOrgs].sort((a, b) => mult * ((eventRelevancy[String(a.OrganizationId)]?.rawScore || 0) - (eventRelevancy[String(b.OrganizationId)]?.rawScore || 0)));
+        displayOrgs = topN < 9999 ? sorted.slice(0, topN) : sorted;
+        metaEl.textContent = `Showing top ${displayOrgs.length} of ${allOrgs.length} (ranked by relevance)`;
         renderOrgs();
       }
     });
+    document.getElementById('show-per-page')?.addEventListener('change', () => renderOrgs());
 
     document.getElementById('tracking-info-btn')?.addEventListener('click', () => {
       alert(`Got response / Reached out tracking:\n\nData is read from your Google Sheet only. Set GOOGLE_SHEET_TRACKING_URL in Vercel and edit the sheet manually. The app refreshes every 30s.`);
     });
 
     document.getElementById('relevance-help-btn')?.addEventListener('click', () => {
-      alert(`How relevance matching works:\n\n• Keywords are extracted from your AI output (words 3+ chars, duplicates removed).\n• An org is shown only if at least 2 keywords match somewhere in its name, categories, or description.\n• Scoring for sorting: name match +3, category +2, description +1. Bonuses for innovation/roundtable.\n• Use concrete terms in your AI prompt: industries (design, tech, business), topics, activity types (networking, workshop).`);
+      alert(`How relevance matching works:\n\n• All orgs are ranked by relevance score. You see the top N (25, 50, 100, 200, or All).\n• Scoring: name match +3, category +2, description +1. Bonuses for innovation/roundtable.\n• Use specific terms in your AI output (robotics, startups, prototyping) rather than broad ones (design, business, service) for better differentiation.`);
     });
 
     [searchEl, innovationEl, categoryEl, customEl].forEach(el => {
