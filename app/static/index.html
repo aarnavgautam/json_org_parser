@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UF Organizations Directory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #0f1419; --surface: #1a2332; --surface-hover: #243044; --border: #2d3a4d; --text: #e6edf3; --text-muted: #8b9eb5; --accent: #58a6ff; --accent-dim: #388bfd66; --success: #3fb950; --tag: #21262d; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; position: sticky; top: 0; z-index: 10; }
+    .header h1 { font-size: 1.25rem; font-weight: 600; }
+    .header p { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 1rem; padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); align-items: center; }
+    .toolbar .search { flex: 1; min-width: 200px; }
+    .toolbar input, .toolbar select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.875rem; }
+    .toolbar input:focus, .toolbar select:focus { outline: none; border-color: var(--accent); }
+    .positions-panel { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
+    .positions-panel h3 { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .position-checkboxes { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+    .position-checkboxes label { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.875rem; }
+    .position-checkboxes input { accent-color: var(--accent); }
+    .position-actions { margin-left: 0.5rem; }
+    .position-actions button { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; margin-right: 0.25rem; }
+    .position-actions button:hover { color: var(--accent); border-color: var(--accent); }
+    .actions-bar { display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); align-items: center; }
+    .actions-bar .selected-count { color: var(--text-muted); font-size: 0.875rem; }
+    .btn { background: var(--accent); color: var(--bg); border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; font-weight: 500; }
+    .btn:hover { opacity: 0.9; }
+    .btn-outline { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+    .btn-outline:hover { background: var(--accent-dim); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .content { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+    .results-meta { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .org-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; gap: 1rem; align-items: flex-start; }
+    .org-card:hover { border-color: var(--accent); }
+    .org-card.selected { border-color: var(--accent); background: var(--accent-dim); }
+    .org-checkbox { flex-shrink: 0; margin-top: 0.2rem; accent-color: var(--accent); cursor: pointer; }
+    .org-main { flex: 1; min-width: 0; }
+    .org-name { font-weight: 600; font-size: 1rem; margin-bottom: 0.25rem; }
+    .org-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .org-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+    .tag { background: var(--tag); color: var(--text-muted); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; }
+    .tag.innovation-strong { background: #23863633; color: var(--success); }
+    .tag.roundtable { background: var(--accent-dim); color: var(--accent); }
+    .org-tracking { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 0.8rem; }
+    .org-tracking .response-flag { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+    .org-tracking .response-flag input { accent-color: var(--success); cursor: pointer; }
+    .org-tracking .outreach-count { display: flex; align-items: center; gap: 0.35rem; }
+    .org-tracking .outreach-count button { background: var(--tag); border: 1px solid var(--border); color: var(--text); width: 1.5rem; height: 1.5rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; line-height: 1; }
+    .org-tracking .outreach-count button:hover { background: var(--surface-hover); }
+    .contacts { font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+    .contact { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+    .contact-position { color: var(--text-muted); min-width: 120px; }
+    .contact-email { color: var(--accent); text-decoration: none; }
+    .contact-email:hover { text-decoration: underline; }
+    .loading, .error { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .error { color: #f85149; }
+  </style>
+</head>
+<body>
+  <script>window.API_BASE = '';</script>
+  <header class="header">
+    <h1>UF Organizations Directory</h1>
+    <p>Search, filter, select orgs, export contacts, track outreach</p>
+  </header>
+  <div class="toolbar">
+    <div class="search"><input type="text" id="search" placeholder="Search org name or description..." style="width:100%"></div>
+    <select id="innovation_fit"><option value="">Innovation: Any</option></select>
+    <select id="category"><option value="">Category: Any</option></select>
+    <input type="text" id="custom" placeholder="Custom keywords..." style="width:160px">
+  </div>
+  <div class="positions-panel">
+    <h3>Include positions in results & export</h3>
+    <div class="position-checkboxes">
+      <label><input type="checkbox" id="pos-president" value="president"> President</label>
+      <label><input type="checkbox" id="pos-vp" value="vice president"> Vice President</label>
+      <label><input type="checkbox" id="pos-recruit" value="recruitment/outreach"> Recruitment/Outreach</label>
+      <label><input type="checkbox" id="pos-other" value="other"> Other</label>
+      <span class="position-actions">
+        <button type="button" id="pos-select-all">Select all</button>
+        <button type="button" id="pos-deselect-all">Deselect all</button>
+      </span>
+    </div>
+  </div>
+  <div class="actions-bar">
+    <span class="selected-count" id="selected-count">0 selected</span>
+    <button type="button" class="btn btn-outline" id="select-all">Select all visible</button>
+    <button type="button" class="btn btn-outline" id="deselect-all">Deselect all</button>
+    <button type="button" class="btn" id="export-btn" disabled>Export selected to CSV</button>
+  </div>
+  <main class="content">
+    <div class="results-meta" id="meta"></div>
+    <div id="results"></div>
+  </main>
+  <script>
+    const API = '';
+    const STORAGE_KEY = 'uf-orgs-tracking';
+    const searchEl = document.getElementById('search');
+    const innovationEl = document.getElementById('innovation_fit');
+    const categoryEl = document.getElementById('category');
+    const customEl = document.getElementById('custom');
+    const posPresident = document.getElementById('pos-president');
+    const posVp = document.getElementById('pos-vp');
+    const posRecruit = document.getElementById('pos-recruit');
+    const posOther = document.getElementById('pos-other');
+    const posSelectAll = document.getElementById('pos-select-all');
+    const posDeselectAll = document.getElementById('pos-deselect-all');
+    const selectAllBtn = document.getElementById('select-all');
+    const deselectAllBtn = document.getElementById('deselect-all');
+    const exportBtn = document.getElementById('export-btn');
+    const selectedCountEl = document.getElementById('selected-count');
+    const metaEl = document.getElementById('meta');
+    const resultsEl = document.getElementById('results');
+    let debounceTimer, allOrgs = [], selectedIds = new Set(), tracking = {};
+    function debounce(fn, ms) { return () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(fn, ms); }; }
+    function loadTracking() { try { const s = localStorage.getItem(STORAGE_KEY); tracking = s ? JSON.parse(s) : {}; } catch { tracking = {}; } }
+    function saveTracking() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tracking)); } catch (_) {} }
+    function getPositionParam() { const c = [posPresident, posVp, posRecruit, posOther].filter(x => x.checked).map(x => x.value); return c.length === 0 || c.length === 4 ? '' : c.join(','); }
+    function fetchFilters() { fetch(API + '/api/filters').then(r => r.json()).then(d => { d.innovation_fits.forEach(f => { const o = document.createElement('option'); o.value = f; o.textContent = f; innovationEl.appendChild(o); }); d.categories.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; categoryEl.appendChild(o); }); }); }
+    function fetchOrgs() { const p = new URLSearchParams(); const s = searchEl.value.trim(), pos = getPositionParam(), inv = innovationEl.value.trim(), cat = categoryEl.value.trim(), cus = customEl.value.trim(); if (s) p.set('search', s); if (pos) p.set('position', pos); if (inv) p.set('innovation_fit', inv); if (cat) p.set('category', cat); if (cus) p.set('custom_filter', cus); resultsEl.innerHTML = '<div class="loading">Loading...</div>'; fetch(API + '/api/organizations?' + p).then(r => r.json()).then(d => { allOrgs = d.organizations; metaEl.textContent = d.total + ' organization' + (d.total !== 1 ? 's' : '') + ' found'; renderOrgs(); }).catch(() => { resultsEl.innerHTML = '<div class="error">Failed to load data.</div>'; }); }
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+    function renderOrgs() { if (!allOrgs.length) { resultsEl.innerHTML = '<div class="loading">No organizations match your filters.</div>'; exportBtn.disabled = true; return; } resultsEl.innerHTML = allOrgs.map(org => { const oid = String(org.OrganizationId); const t = tracking[oid] || { gotResponse: false, outreachCount: 0 }; const tags = [...(org.Categories || [])]; if (org.InnovationFit) tags.push('Innovation: ' + org.InnovationFit); if (org.RoundtableRecommended === 'Yes') tags.push('Roundtable ✓'); const officers = (org.Officers || []).filter(o => o.Email); const chk = selectedIds.has(oid) ? 'checked' : ''; return '<article class="org-card ' + (chk ? 'selected' : '') + '" data-org-id="' + escapeHtml(oid) + '"><input type="checkbox" class="org-checkbox" ' + chk + ' data-org-id="' + escapeHtml(oid) + '"><div class="org-main"><div class="org-name">' + escapeHtml(org.OrganizationName) + '</div>' + (org.OrganizationDescription ? '<div class="org-desc">' + escapeHtml(org.OrganizationDescription) + '</div>' : '') + '<div class="org-tags">' + tags.map(tg => '<span class="tag">' + escapeHtml(tg) + '</span>').join('') + '</div><div class="org-tracking"><label class="response-flag"><input type="checkbox" data-org-id="' + escapeHtml(oid) + '" data-action="response" ' + (t.gotResponse ? 'checked' : '') + '> Got response</label><div class="outreach-count"><span>Reached out:</span><button type="button" data-org-id="' + escapeHtml(oid) + '" data-action="decr">−</button><span data-org-id="' + escapeHtml(oid) + '" class="outreach-num">' + t.outreachCount + '</span><button type="button" data-org-id="' + escapeHtml(oid) + '" data-action="incr">+</button></div></div><div class="contacts">' + officers.map(o => '<div class="contact"><span class="contact-position">' + escapeHtml(o.Position || '') + '</span><a class="contact-email" href="mailto:' + escapeHtml(o.Email || '') + '">' + escapeHtml(o.Email || '') + '</a></div>').join('') + '</div></div></article>'; }).join(''); resultsEl.querySelectorAll('.org-checkbox').forEach(cb => { cb.addEventListener('change', () => { const id = cb.dataset.orgId; if (cb.checked) selectedIds.add(id); else selectedIds.delete(id); selectedCountEl.textContent = selectedIds.size + ' selected'; const card = resultsEl.querySelector('.org-card[data-org-id="' + id + '"]'); if (card) card.classList.toggle('selected', cb.checked); exportBtn.disabled = selectedIds.size === 0; }); }); resultsEl.querySelectorAll('.org-card').forEach(card => { card.addEventListener('click', e => { if (e.target.closest('.org-checkbox') || e.target.closest('a') || e.target.closest('button') || e.target.closest('input')) return; const id = card.dataset.orgId; const sel = !selectedIds.has(id); if (sel) selectedIds.add(id); else selectedIds.delete(id); const cb = card.querySelector('.org-checkbox'); if (cb) cb.checked = sel; card.classList.toggle('selected', sel); selectedCountEl.textContent = selectedIds.size + ' selected'; exportBtn.disabled = selectedIds.size === 0; }); }); resultsEl.querySelectorAll('[data-action="response"]').forEach(cb => { cb.addEventListener('change', () => { const id = cb.dataset.orgId; if (!tracking[id]) tracking[id] = { gotResponse: false, outreachCount: 0 }; tracking[id].gotResponse = cb.checked; saveTracking(); }); }); resultsEl.querySelectorAll('.outreach-count button[data-action="incr"]').forEach(btn => { btn.addEventListener('click', () => { const id = btn.dataset.orgId; if (!tracking[id]) tracking[id] = { gotResponse: false, outreachCount: 0 }; tracking[id].outreachCount = (tracking[id].outreachCount || 0) + 1; saveTracking(); const sp = resultsEl.querySelector('.outreach-num[data-org-id="' + id + '"]'); if (sp) sp.textContent = tracking[id].outreachCount; }); }); resultsEl.querySelectorAll('.outreach-count button[data-action="decr"]').forEach(btn => { btn.addEventListener('click', () => { const id = btn.dataset.orgId; if (!tracking[id]) tracking[id] = { gotResponse: false, outreachCount: 0 }; tracking[id].outreachCount = Math.max(0, (tracking[id].outreachCount || 0) - 1); saveTracking(); const sp = resultsEl.querySelector('.outreach-num[data-org-id="' + id + '"]'); if (sp) sp.textContent = tracking[id].outreachCount; }); }); exportBtn.disabled = selectedIds.size === 0; }
+    function toggleSelect(oid, add) { if (add) selectedIds.add(oid); else selectedIds.delete(oid); selectedCountEl.textContent = selectedIds.size + ' selected'; exportBtn.disabled = selectedIds.size === 0; }
+    selectAllBtn.addEventListener('click', () => { allOrgs.forEach(o => selectedIds.add(String(o.OrganizationId))); selectedCountEl.textContent = selectedIds.size + ' selected'; renderOrgs(); });
+    deselectAllBtn.addEventListener('click', () => { selectedIds.clear(); selectedCountEl.textContent = '0 selected'; renderOrgs(); });
+    posSelectAll.addEventListener('click', () => { [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = true); fetchOrgs(); });
+    posDeselectAll.addEventListener('click', () => { [posPresident, posVp, posRecruit, posOther].forEach(c => c.checked = false); fetchOrgs(); });
+    [posPresident, posVp, posRecruit, posOther].forEach(c => c.addEventListener('change', fetchOrgs));
+    exportBtn.addEventListener('click', () => { if (selectedIds.size === 0) return; const pos = [posPresident, posVp, posRecruit, posOther].filter(c => c.checked).map(c => c.value); const body = JSON.stringify({ orgIds: [...selectedIds], positions: pos.length === 0 || pos.length === 4 ? ['all'] : pos }); fetch(API + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).then(r => r.blob()).then(blob => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'org_contacts_export.csv'; a.click(); URL.revokeObjectURL(a.href); }); });
+    [searchEl, innovationEl, categoryEl, customEl].forEach(el => { if (el === searchEl || el === customEl) el.addEventListener('input', debounce(fetchOrgs, 300)); else el.addEventListener('change', fetchOrgs); });
+    loadTracking(); fetchFilters(); fetchOrgs();
+  </script>
+</body>
+</html>
